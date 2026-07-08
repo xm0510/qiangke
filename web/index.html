@@ -1,0 +1,668 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微信抢单系统 - 配置面板</title>
+<style>
+  :root { --bg:#f0f2ff; --card:#fff; --text:#1a1a2e; --muted:#6b7280; --accent:#7c3aed; --accent2:#a855f7; --danger:#ef4444; --warn:#f59e0b; --border:#e5e7eb; --hover:#f5f3ff; --radius:12px; --shadow:0 1px 3px rgba(0,0,0,.06); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; background:var(--bg); color:var(--text); line-height:1.6; padding:20px; }
+  .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:10px; }
+  .header { background:linear-gradient(135deg,#7c3aed,#a855f7); color:#fff; padding:16px 20px; border-radius:12px; margin-bottom:16px; }
+.header h1 { font-size:22px; display:flex; align-items:center; gap:8px; position:relative; }
+.header .btn-green:hover,.header .btn-green { background:#fff; color:#7c3aed; }
+.header .btn { background:rgba(255,255,255,.15); color:#fff; }
+.header .btn:hover { background:rgba(255,255,255,.25); }
+  .status-dot { width:12px; height:12px; border-radius:50%; display:inline-block; }
+  .status-dot.running { background:#7c3aed; box-shadow:0 0 6px #7c3aed; animation:pulse 2s infinite; }
+  .status-dot.paused { background:#FF9800; }
+  .status-dot.stopped { background:#ccc; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:900px) { .grid { grid-template-columns:1fr; } }
+  .card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; transition:.2s; }
+  .card h3 { font-size:15px; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:6px; }
+  .card h3 .icon { font-size:18px; }
+  .row { display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .row label { min-width:80px; font-size:13px; color:var(--muted); flex-shrink:0; }
+  .row select,.row input[type=text],.row input[type=password],.row input[type=number] { flex:1; min-width:120px; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; outline:none; }
+  .row select:focus,.row input:focus { border-color:var(--accent); }
+  .toggle { position:relative; display:inline-block; width:44px; height:24px; flex-shrink:0; }
+  .toggle input { display:none; }
+  .toggle .slider { position:absolute; cursor:pointer; top:0;left:0;right:0;bottom:0; background:#ccc; border-radius:12px; transition:.3s; }
+  .toggle .slider:before { content:""; position:absolute; height:18px; width:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.3s; }
+  .toggle input:checked+.slider { background:var(--accent); }
+  .toggle input:checked+.slider:before { transform:translateX(20px); }
+  .checkbox-group { display:flex !important; flex-wrap:wrap; gap:6px; }
+  .checkbox-group label { display:inline-flex !important; align-items:center; gap:4px; padding:6px 12px; border:1px solid var(--border); border-radius:20px; font-size:13px; cursor:pointer; transition:.2s; user-select:none; }
+  .checkbox-group label:hover { background:var(--hover); }
+  #typeSelector { display: block !important; visibility: visible !important; }
+  .type-chip.active { border-color: #7c3aed !important; background: rgba(124,58,237,.12) !important; color: #6d28d9 !important; font-weight: 600 !important; }
+  .btn { padding:8px 16px; border-radius:6px; border:none; font-size:13px; cursor:pointer; transition:.2s; display:inline-flex; align-items:center; gap:4px; }
+  .btn-green { background:linear-gradient(135deg,#7c3aed,#a855f7); color:#fff; }
+  .btn-green:hover { background:#6d28d9; }
+  .btn-orange { background:var(--warn); color:#fff; }
+  .btn-orange:hover { background:#F57C00; }
+  .btn-red { background:var(--danger); color:#fff; }
+  .btn-red:hover { background:#D32F2F; }
+  .btn-outline { background:transparent; border:1px solid var(--border); }
+  .btn-outline:hover { background:var(--hover); }
+  .btn-blue { background:#2196F3; color:#fff; }
+  .btn-blue:hover { background:#1976D2; }
+  .btn-group { display:flex; gap:8px; flex-wrap:wrap; }
+  .record-item { padding:10px; border-bottom:1px solid var(--border); font-size:12px; }
+  .record-item:last-child { border-bottom:none; }
+  .record-item .meta { color:var(--muted); margin-bottom:2px; }
+  .record-item .msg { margin:2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; }
+  .badge-green { background:rgba(124,58,237,.12); color:#6d28d9; }
+  .badge-blue { background:rgba(33,150,243,.15); color:#1565C0; }
+  .badge-orange { background:rgba(255,152,0,.15); color:#E65100; }
+  .full-width { grid-column:1/-1; }
+  .tab-nav { display:flex; gap:4px; margin-bottom:16px; }
+  .tab-nav a { padding:8px 20px; text-decoration:none; color:var(--text); border-radius:6px; font-size:14px; background:var(--card); box-shadow:var(--shadow); }
+  .tab-nav a.active { background:linear-gradient(135deg,#7c3aed,#a855f7); color:#fff; }
+  .hidden { display:none !important; }
+  .section-sub { margin-top:12px; padding:12px; background:var(--bg); border-radius:6px; }
+  .section-sub h4 { font-size:13px; color:var(--muted); margin-bottom:8px; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 24px; border-radius:20px; font-size:13px; z-index:9999; animation:fadeInUp .3s; }
+  @keyframes fadeInUp { from { opacity:0; transform:translateX(-50%) translateY(20px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+  .conflict-banner { background:#FFF3E0; border:1px solid #FFE0B2; border-radius:6px; padding:10px; margin-top:8px; font-size:12px; }
+  .model-preset { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .model-preset .preset-btn { padding:5px 12px; border:1px solid var(--border); border-radius:14px; font-size:12px; cursor:pointer; background:var(--card); transition:.2s; }
+  .model-preset .preset-btn:hover { background:var(--hover); }
+  .model-preset .preset-btn.active { border-color:var(--accent); background:rgba(124,58,237,.12); color:var(--accent); font-weight:600; }
+  .tip-text { font-size:11px; color:var(--muted); margin-top:2px; margin-left:92px; }
+  .selected-types-summary{margin-top:10px;padding:10px 12px;border-radius:12px;background:linear-gradient(135deg,rgba(124,58,237,.08),rgba(168,85,247,.10));color:#5b21b6;font-size:12px;border:1px solid rgba(124,58,237,.18)}
+  .type-chip{padding:8px 16px!important;margin:4px!important;border:1.5px solid #ddd!important;border-radius:999px!important;background:#fff!important;cursor:pointer!important;font-size:13px!important;font-family:inherit!important;transition:.18s!important;box-shadow:0 2px 8px rgba(15,23,42,.04)!important}
+  .type-chip:hover{background:#f5f3ff!important;border-color:#c4b5fd!important;transform:translateY(-1px)}
+  .type-chip.active{border-color:#7c3aed!important;background:linear-gradient(135deg,#7c3aed,#a855f7)!important;color:#fff!important;font-weight:700!important;box-shadow:0 8px 18px rgba(124,58,237,.24)!important}
+</style>
+</head>
+<body>
+
+<div class="tab-nav">
+  <a href="/" class="active">配置面板</a>
+  <a href="/schedule.html">课表管理</a>
+</div>
+
+<div class="header">
+  <h1>
+    <span>微信抢单系统</span>
+    <span class="status-dot stopped" id="statusDot" title="服务状态"></span>
+    <span style="font-size:12px;color:var(--muted)" id="statusLabel">已停止</span>
+  </h1>
+  <div class="btn-group" style="gap:8px">
+    <button class="btn btn-green" onclick="controlService('start')" id="btnStart">开始抢单</button>
+    <button class="btn btn-orange" onclick="controlService('pause')" id="btnPause">暂停</button>
+    <button class="btn btn-outline" onclick="testReply()">测试回复"1"</button>
+    <button class="btn btn-outline" onclick="location.href='/schedule.html'">打开课表</button>
+  </div>
+</div>
+
+<div class="grid">
+
+  <!-- 基础设置 -->
+  <div class="card">
+    <h3><span class="icon">⚙</span> 基础设置</h3>
+    <div class="row">
+      <label>开机自启动</label>
+      <label class="toggle"><input type="checkbox" id="auto_start" onchange="saveOne('auto_start')"><span class="slider"></span></label>
+    </div>
+    <div class="row">
+      <label>监听模式</label>
+      <select id="monitor_mode" onchange="saveOne('monitor_mode')">
+        <option value="multi">多个群</option>
+        <option value="single">单个群</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>回复延迟</label>
+      <select id="reply_delay_ms" onchange="saveOne('reply_delay_ms')">
+        <option value="0">立即回复 (0ms)</option>
+        <option value="500">0.5秒</option>
+        <option value="1000">1秒</option>
+        <option value="2000">2秒</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 抢单模式 -->
+  <div class="card">
+    <h3><span class="icon">🎯</span> 抢单模式</h3>
+    <div class="row">
+      <label>模式</label>
+      <select id="grab_mode" onchange="onGrabModeChange()">
+        <option value="multi">多项模式 (见单就抢)</option>
+        <option value="single">单项模式 (只抢勾选类型)</option>
+      </select>
+    </div>
+    <div id="typeSelector" style="display:block !important;">
+      <div class="row"><label>勾选类型</label></div>
+      <div class="checkbox-group" id="typeCheckboxes"></div>
+      <div class="selected-types-summary" id="selectedTypeSummary">&#24050;&#36873;&#31867;&#22411;&#65306;&#21152;&#36733;&#20013;...</div>
+    </div>
+  </div>
+
+  <!-- 回复设置 -->
+  <div class="card">
+    <h3><span class="icon">&#128172;</span> &#22238;&#22797;&#35774;&#32622;</h3>
+    <div class="row">
+      <label>&#22238;&#22797;&#20869;&#23481;</label>
+      <input type="text" id="reply_content" value="1" onchange="saveOne('reply_content')" placeholder="&#40664;&#35748;1&#65292;&#21487;&#25913;&#20026;&#20219;&#24847;&#25991;&#23383;">
+    </div>
+    <div class="section-sub" style="background:linear-gradient(135deg,rgba(124,58,237,.08),rgba(168,85,247,.08));border:1px solid rgba(124,58,237,.16)">
+      <h4>&#26159;&#21542;&#38656;&#35201;&#24341;&#29992;&#25509;&#21333;&#20449;&#24687;</h4>
+      <div class="row" style="margin-top:4px">
+        <label>&#24341;&#29992;&#22238;&#22797;</label>
+        <label class="toggle"><input type="checkbox" id="quote_reply" onchange="saveOne('quote_reply')"><span class="slider"></span></label>
+        <span style="font-size:11px;color:var(--muted)">&#24320;&#21551;&#65306;&#20808;&#24341;&#29992;&#21407;&#25509;&#21333;&#20449;&#24687;&#65292;&#20877;&#22238;&#22797; 1&#65307;&#20851;&#38381;&#65306;&#30452;&#25509;&#22238;&#22797; 1</span>
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label>&#35835;&#19981;&#21040;&#25991;&#23383;&#20173;&#25250;</label>
+      <label class="toggle"><input type="checkbox" id="auto_reply_on_screen_change" onchange="saveOne('auto_reply_on_screen_change')"><span class="slider"></span></label>
+      <span style="font-size:11px;color:var(--muted)">&#24494;&#20449;&#26080;&#27861;&#35835;&#21462;&#25991;&#23383;&#26102;&#65292;&#30417;&#21548;&#32676;&#26377;&#26032;&#28040;&#24687;&#21464;&#21270;&#20063;&#20250;&#25353;&#40664;&#35748;&#31867;&#22411;&#22238;&#22797;</span>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:4px">&#24314;&#35758;&#24320;&#21551;&#24341;&#29992;&#22238;&#22797;&#65292;&#36825;&#26679;&#32676;&#37324;&#21487;&#30475;&#21040;&#20320;&#25250;&#30340;&#26159;&#21738;&#26465;&#25509;&#21333;&#20449;&#24687;&#12290;</p>
+  </div>
+
+  <!-- 群列表管理 -->
+  <div class="card">
+    <h3><span class="icon">👥</span> 监听群管理</h3>
+    <div class="row">
+      <input type="text" id="newGroupName" placeholder="输入群名称..." style="flex:1">
+      <button class="btn btn-green" onclick="addGroup()">添加</button>
+      <button class="btn btn-blue" onclick="scanGroups()" id="btnScan">🔍 自动扫描微信群</button>
+    </div>
+    <div id="groupList" style="max-height:150px;overflow-y:auto;margin-top:8px;font-size:13px"></div>
+    <p id="scanTip" style="font-size:11px;color:var(--muted);margin-top:4px">点「自动扫描」自动发现微信中的群聊（需微信已登录并显示聊天列表）</p>
+  </div>
+
+  <!-- AI 智能识别（修复#4: 多模型支持） -->
+  <div class="card full-width">
+    <h3><span class="icon">🤖</span> AI 智能识别（多模型支持）</h3>
+    <div class="row">
+      <label>启用AI</label>
+      <label class="toggle"><input type="checkbox" id="ai_enabled" onchange="onAIChange()"><span class="slider"></span></label>
+      <span style="font-size:12px;color:var(--muted)">识别无关键词的接单消息（需API Key）</span>
+    </div>
+    <div id="aiSettings" style="display:none">
+      <div class="row">
+        <label>模型选择</label>
+        <div class="model-preset" id="modelPresets">
+          <button class="preset-btn active" onclick="selectModel('openai')">OpenAI (GPT-4o-mini)</button>
+          <button class="preset-btn" onclick="selectModel('deepseek')">DeepSeek (V3)</button>
+          <button class="preset-btn" onclick="selectModel('deepseek-r1')">DeepSeek (R1)</button>
+          <button class="preset-btn" onclick="selectModel('agnes')">Agnes AI 2.0</button>
+          <button class="preset-btn" onclick="selectModel('agnes-fast')">Agnes 1.5 高并发</button>
+          <button class="preset-btn" onclick="selectModel('custom')">自定义</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>API地址</label>
+        <input type="text" id="ai_api_url" value="https://api.openai.com/v1/chat/completions" onchange="saveOne('ai_api_url')">
+      </div>
+      <div class="row">
+        <label>API Key</label>
+        <input type="password" id="ai_api_key" placeholder="sk-..." onchange="saveOne('ai_api_key')">
+      </div>
+      <div class="row">
+        <label>模型名</label>
+        <input type="text" id="ai_model" value="gpt-4o-mini" onchange="saveOne('ai_model')" style="flex:1">
+      </div>
+      <div class="row">
+        <label>默认类型</label>
+        <select id="ai_default_type" onchange="saveOne('ai_default_type')">
+          <option value="词汇">词汇</option>
+          <option value="阅读">阅读</option>
+          <option value="语法">语法</option>
+          <option value="完型">完型</option>
+          <option value="听口">听口</option>
+          <option value="写作">写作</option>
+          <option value="抗遗忘">抗遗忘</option>
+        </select>
+        <span style="font-size:11px;color:var(--muted)">AI识别为接单但无类型时默认</span>
+      </div>
+      <button class="btn btn-outline" onclick="testAIConnection()" style="margin-top:8px">测试连接</button>
+      <p class="tip-text">支持所有兼容 OpenAI Chat API 的服务（DeepSeek / Agnes AI / 通义千问 / 智谱 / 本地Ollama等）。Agnes Base URL: https://apihub.agnes-ai.com/v1</p>
+    </div>
+  </div>
+
+  <!-- 课表相关配置 -->
+  <div class="card full-width">
+    <h3><span class="icon">📅</span> 课表管理设置</h3>
+    <div class="grid" style="grid-template-columns:1fr 1fr;">
+      <div>
+        <div class="row"><label>自动入课表</label><label class="toggle"><input type="checkbox" id="auto_add_schedule" onchange="saveOne('auto_add_schedule')"><span class="slider"></span></label><span style="font-size:11px;color:var(--muted)">抢单后AI提取时间自动排课</span></div>
+        <div class="row"><label>冲突检测</label><label class="toggle"><input type="checkbox" id="conflict_detection" onchange="saveOne('conflict_detection')"><span class="slider"></span></label></div>
+        <div class="row" id="conflictActionRow"><label>冲突处理</label><select id="conflict_action" onchange="saveOne('conflict_action')"><option value="warn_only">仅提醒</option><option value="block">提醒并阻止</option></select></div>
+        <div class="row"><label>收入统计</label><label class="toggle"><input type="checkbox" id="income_stats_enabled" onchange="saveOne('income_stats_enabled')"><span class="slider"></span></label></div>
+        <div class="row"><label>默认课时费</label><input type="number" id="default_price" value="100" onchange="saveOne('default_price')" style="width:100px"> 元/节</div>
+      </div>
+      <div>
+        <div class="row"><label>每周重复</label><label class="toggle"><input type="checkbox" id="recurring_enabled" onchange="saveOne('recurring_enabled')"><span class="slider"></span></label></div>
+        <div class="row" id="recurWeeksRow"><label>提前生成</label><select id="recurring_weeks_ahead" onchange="saveOne('recurring_weeks_ahead')"><option value="2">2周</option><option value="4">4周</option><option value="8">8周</option><option value="12">12周</option></select></div>
+        <div class="row"><label>今日提醒</label><label class="toggle"><input type="checkbox" id="today_reminder" onchange="saveOne('today_reminder')"><span class="slider"></span></label></div>
+        <div class="row"><label>课前提醒</label><label class="toggle"><input type="checkbox" id="pre_class_reminder" onchange="saveOne('pre_class_reminder')"><span class="slider"></span></label></div>
+        <div class="row" id="preClassRow"><label>提前</label><select id="pre_class_minutes" onchange="saveOne('pre_class_minutes')"><option value="5">5分钟</option><option value="10">10分钟</option><option value="15">15分钟</option><option value="30">30分钟</option></select></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 统计概览 -->
+  <div class="card">
+    <h3><span class="icon">📊</span> 统计概览</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+      <div>总抢单: <strong id="statGrabs">0</strong></div>
+      <div>今日抢单: <strong id="statToday">0</strong></div>
+      <div>课表课程: <strong id="statSchedules">0</strong></div>
+      <div>活跃群: <strong id="statGroups">0</strong></div>
+    </div>
+  </div>
+
+  
+  <!-- 实时监控日志 -->
+  <div class="card">
+    <h3><span class="icon">📡</span> 实时监控日志 <button class="btn btn-outline" style="float:right;font-size:11px;padding:4px 10px" onclick="refreshMonitorLog()">刷新</button></h3>
+    <div id="monitorLogs" style="max-height:250px;overflow-y:auto;font-family:Consolas,monospace;font-size:11px;background:#1e1e1e;color:#d4d4d4;padding:10px;border-radius:6px;white-space:pre-wrap;word-break:break-all">加载中...</div>
+  </div>
+
+  <!-- 抢单记录 -->
+  <div class="card">
+    <h3><span class="icon">📝</span> 最近抢单记录 <button class="btn btn-outline" style="float:right;font-size:11px;padding:4px 10px" onclick="refreshGrabs()">刷新</button></h3>
+    <div id="grabRecords" style="max-height:300px;overflow-y:auto"></div>
+  </div>
+
+</div>
+
+<script>
+// ==================== API 工具 ====================
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+// ==================== 加载配置 ====================
+async function loadConfig() {
+  const cfg = await api('GET', '/api/config');
+  if (!cfg) return;
+  Object.entries(cfg).forEach(([k, v]) => {
+    const el = document.getElementById(k);
+    if (!el) return;
+    if (el.type === 'checkbox') {
+      el.checked = v === 'true';
+    } else if (el.tagName === 'SELECT' || el.tagName === 'INPUT') {
+      el.value = v;
+    }
+  });
+  
+  document.getElementById('typeSelector').style.display = 'block';
+  document.getElementById('typeSelector').style.visibility = 'visible';
+  updateGrabModeUI();
+  updateAIUI();
+  // onMonitorModeChange() skipped - element doesn't exist
+  loadTypeCheckboxes(cfg.selected_types);
+  loadStatus(cfg.service_status);
+  refreshGroups();
+  refreshGrabs();
+  refreshStats();
+  
+  // 修复#4: 恢复模型预设状态
+  restoreModelPreset(cfg.ai_api_url, cfg.ai_model);
+}
+
+// ==================== 修复#4: 多模型切换 ====================
+const MODEL_PRESETS = {
+  'openai':     { url: 'https://api.openai.com/v1/chat/completions',  model: 'gpt-4o-mini',       key: 'sk-' },
+  'deepseek':   { url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-chat',     key: 'sk-' },
+  'deepseek-r1':{ url: 'https://api.deepseek.com/v1/chat/completions', model: 'deepseek-reasoner', key: 'sk-' },
+  'agnes':      { url: 'https://apihub.agnes-ai.com/v1/chat/completions', model: 'agnes-2.0-flash', key: 'sk-' },
+  'agnes-fast': { url: 'https://apihub.agnes-ai.com/v1/chat/completions', model: 'agnes-1.5-flash', key: 'sk-' },
+};
+
+function selectModel(preset) {
+  document.querySelectorAll('#modelPresets .preset-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`#modelPresets .preset-btn[onclick="selectModel('${preset}')"]`);
+  if (btn) btn.classList.add('active');
+  
+  if (preset === 'custom') {
+    // 保持当前值不变
+    return;
+  }
+  
+  const cfg = MODEL_PRESETS[preset];
+  if (cfg) {
+    document.getElementById('ai_api_url').value = cfg.url;
+    document.getElementById('ai_model').value = cfg.model;
+    saveOne('ai_api_url');
+    saveOne('ai_model');
+    toast('已切换到: ' + preset);
+  }
+}
+
+function restoreModelPreset(url, model) {
+  let matched = 'custom';
+  for (const [k, v] of Object.entries(MODEL_PRESETS)) {
+    if (url === v.url && model === v.model) { matched = k; break; }
+  }
+  document.querySelectorAll('#modelPresets .preset-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`#modelPresets .preset-btn[onclick="selectModel('${matched}')"]`);
+  if (btn) btn.classList.add('active');
+}
+
+// ==================== 保存配置 ====================
+async function saveOne(key) {
+  const el = document.getElementById(key);
+  if (!el) return;
+  let val = el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value;
+  
+  await api('POST', '/api/config', { [key]: val });
+  
+  if (key === 'grab_mode') updateGrabModeUI();
+  if (key === 'ai_enabled') updateAIUI();
+  if (key === 'monitor_mode') onMonitorModeChange();
+  if (key === 'conflict_detection') { document.getElementById('conflictActionRow').style.display = el.checked ? '' : 'none'; }
+  if (key === 'recurring_enabled') { document.getElementById('recurWeeksRow').style.display = el.checked ? '' : 'none'; }
+  if (key === 'pre_class_reminder') { document.getElementById('preClassRow').style.display = el.checked ? '' : 'none'; }
+}
+
+function updateGrabModeUI() {
+  var ts = document.getElementById('typeSelector');
+  if (!ts) return;
+  ts.style.display = 'block';
+  ts.style.visibility = 'visible';
+  ts.classList.remove('hidden');
+}
+
+function onGrabModeChange() {
+  updateGrabModeUI();
+  saveOne('grab_mode');
+}
+
+function updateAIUI() {
+  var box = document.getElementById('aiSettings');
+  var enabled = document.getElementById('ai_enabled');
+  if (box && enabled) box.style.display = enabled.checked ? '' : 'none';
+}
+
+function onAIChange() {
+  updateAIUI();
+  saveOne('ai_enabled');
+}
+
+function onMonitorModeChange() {
+  var el = document.getElementById('singleGroupRow');
+  if (!el) return;
+  el.style.display = document.getElementById('monitor_mode').value === 'single' ? '' : 'none';
+}
+
+// ==================== 类型复选框 ====================
+function loadTypeCheckboxes(typesJson) {
+  var container = document.getElementById('typeCheckboxes');
+  var types = ['词汇','阅读','语法','完型','听口','写作','抗遗忘'];
+  var selected = [];
+  try { selected = JSON.parse(typesJson || '[]'); } catch(e) {}
+  
+  container.innerHTML = '';
+  container.style.display = 'flex';
+  
+  types.forEach(function(t) {
+    var btn = document.createElement('button');
+    btn.textContent = t;
+    btn.className = 'type-chip' + (selected.includes(t) ? ' active' : '');
+    btn.setAttribute('data-type', t);
+    btn.onclick = function() {
+      this.classList.toggle('active');
+      saveTypeCheckboxes();
+    };
+    btn.style.cssText = 'padding:5px 14px;margin:2px;border:2px solid #ddd;border-radius:20px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;transition:.2s;';
+    if (selected.includes(t)) {
+      btn.style.borderColor = '#7c3aed';
+      btn.style.background = 'rgba(124,58,237,.12)';
+      btn.style.color = '#6d28d9';
+      btn.style.fontWeight = '600';
+    }
+    btn.onmouseenter = function() { if (!this.classList.contains('active')) this.style.background = '#f5f3ff'; };
+    btn.onmouseleave = function() { if (!this.classList.contains('active')) this.style.background = '#fff'; };
+    container.appendChild(btn);
+  });
+  updateSelectedTypeSummary();
+}
+
+function updateSelectedTypeSummary() {
+  var el = document.getElementById('selectedTypeSummary');
+  if (!el) return;
+  var types = [];
+  document.querySelectorAll('#typeCheckboxes .type-chip.active').forEach(function(b) {
+    types.push(b.getAttribute('data-type'));
+  });
+  el.textContent = types.length ? ('\u5df2\u9009\u7c7b\u578b\uff1a' + types.join(' / ')) : '\u5df2\u9009\u7c7b\u578b\uff1a\u672a\u9009\u62e9\uff08\u9ed8\u8ba4\u5168\u90e8\u7c7b\u578b\u90fd\u62a2\uff09';
+}
+
+function saveTypeCheckboxes() {
+  var types = [];
+  document.querySelectorAll('#typeCheckboxes .type-chip.active').forEach(function(b) {
+    types.push(b.getAttribute('data-type'));
+  });
+  updateSelectedTypeSummary();
+  // Update config via API
+  fetch('/api/config', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({selected_types: JSON.stringify(types)})
+  });
+}
+
+// ==================== 群组管理（修复#2: 自动扫描） ====================
+async function addGroup() {
+  const input = document.getElementById('newGroupName');
+  const name = input.value.trim();
+  if (!name) return toast('请输入群名称');
+  await api('POST', '/api/groups', { group_name: name });
+  input.value = '';
+  refreshGroups();
+  toast('已添加: ' + name);
+}
+
+async function scanGroups() {
+  const btn = document.getElementById('btnScan');
+  btn.disabled = true;
+  btn.textContent = '🔍 扫描中...';
+  toast('正在扫描微信群...（请确保微信已登录且在桌面显示）');
+  
+  try {
+    const r = await api('POST', '/api/groups/scan');
+    if (r.ok) {
+      toast(`扫描完成! 找到 ${r.total} 个群，新增 ${r.added} 个`);
+      refreshGroups();
+    } else {
+      toast('扫描失败: ' + (r.error || '未知错误'));
+    }
+  } catch(e) {
+    toast('扫描异常: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = '🔍 自动扫描微信群';
+}
+
+async function refreshGroups() {
+  const groups = await api('GET', '/api/groups');
+  const container = document.getElementById('groupList');
+  
+  if (!groups.length) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px">暂无监听群 — 点「自动扫描」或手动添加</p>';
+  } else {
+    container.innerHTML = groups.map(g => `
+      <div class="row" style="margin-bottom:4px;padding:4px 0">
+        <label class="toggle"><input type="checkbox" ${g.enabled?'checked':''} onchange="toggleGroup(${g.id},this.checked)"><span class="slider"></span></label>
+        <span style="flex:1">${escHtml(g.group_name)}</span>
+        <button class="btn btn-red" style="padding:2px 8px;font-size:11px" onclick="removeGroup(${g.id})">删除</button>
+      </div>
+    `).join('');
+  }
+}
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+async function toggleGroup(id, enabled) {
+  await api('POST', `/api/groups/${id}/toggle`, { enabled });
+  refreshStats();
+}
+
+async function removeGroup(id) {
+  if (!confirm('确定删除此群?')) return;
+  await api('DELETE', `/api/groups/${id}`);
+  refreshGroups();
+  refreshStats();
+}
+
+// ==================== 服务控制（修复#1: 真正启动监控） ====================
+async function controlService(action) {
+  const actions = {
+    start: { api: '/api/service/start', label: '运行中', cls: 'running', btnText: '正在启动...' },
+    pause: { api: '/api/service/pause', label: '已暂停', cls: 'paused', btnText: '正在暂停...' },
+  };
+  const a = actions[action];
+  if (!a) return;
+  
+  const btn = document.getElementById(action === 'start' ? 'btnStart' : 'btnPause');
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = a.btnText;
+  
+  await api('POST', a.api);
+  loadStatus(a.label, a.cls);
+  
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }, 2000);
+  
+  if (action === 'start') {
+    toast('✅ 已开始抢单! 监控已启动，将自动回复"1"');
+  } else {
+    toast('⏸ 已暂停抢单');
+  }
+}
+
+function loadStatus(status, cls) {
+  const dot = document.getElementById('statusDot');
+  const label = document.getElementById('statusLabel');
+  if (status === 'running' || cls === 'running') {
+    dot.className = 'status-dot running';
+    label.textContent = '运行中';
+  } else if (status === 'paused' || cls === 'paused') {
+    dot.className = 'status-dot paused';
+    label.textContent = '已暂停';
+  } else {
+    dot.className = 'status-dot stopped';
+    label.textContent = '已停止';
+  }
+}
+
+
+// ==================== 监控日志 ====================
+async function refreshMonitorLog() {
+  try {
+    const r = await api('GET', '/api/monitor-log?' + Date.now());
+    const container = document.getElementById('monitorLogs');
+    if (r.ok && r.logs && r.logs.length > 0) {
+      container.textContent = r.logs.join('\n');
+    } else {
+      container.textContent = '(暂无日志 - 点击"开始抢单"后会有日志输出)';
+    }
+    container.scrollTop = container.scrollHeight;
+  } catch(e) {
+    document.getElementById('monitorLogs').textContent = '获取日志失败: ' + e.message;
+  }
+}
+
+// ==================== 抢单记录 ====================
+async function refreshGrabs() {
+  const grabs = await api('GET', '/api/grabs?limit=20');
+  const container = document.getElementById('grabRecords');
+  if (!grabs.length) {
+    container.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:10px">暂无抢单记录 — 点击上方"开始抢单"启动</p>';
+    return;
+  }
+  container.innerHTML = grabs.map(g => {
+    const statusBadge = g.reply_status === 'success' ? '<span class="badge badge-green">已抢</span>' : '<span class="badge badge-orange">失败</span>';
+    const typeBadge = g.matched_type ? `<span class="badge badge-blue">${escHtml(g.matched_type)}</span>` : '';
+    const methodBadge = g.match_method === 'ai' ? '<span class="badge badge-orange">AI</span>' : '<span class="badge badge-green">关键词</span>';
+    const time = g.created_at ? g.created_at.substring(5, 16).replace('T', ' ') : '';
+    return `<div class="record-item">
+      <div class="meta">${time} | ${escHtml(g.group_name)} ${methodBadge} ${typeBadge} ${statusBadge}</div>
+      <div class="msg" title="${escHtml(g.message_text)}">${escHtml(g.message_text).substring(0, 60)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ==================== 统计数据 ====================
+async function refreshStats() {
+  const stats = await api('GET', '/api/stats');
+  document.getElementById('statGrabs').textContent = stats.total_grabs || 0;
+  document.getElementById('statToday').textContent = stats.today_grabs || 0;
+  document.getElementById('statSchedules').textContent = stats.total_schedules || 0;
+  document.getElementById('statGroups').textContent = stats.active_groups || 0;
+  
+  loadStatus(stats.service_status);
+}
+
+// ==================== AI 连接测试 ====================
+async function testAIConnection() {
+  const key = document.getElementById('ai_api_key').value;
+  const url = document.getElementById('ai_api_url').value;
+  if (!key) return toast('请先填写 API Key');
+  toast('正在测试连接...');
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model: document.getElementById('ai_model').value, messages: [{ role: 'user', content: '回复OK' }], max_tokens: 5 })
+    });
+    if (r.ok) toast('✅ AI 连接成功!');
+    else { const t = await r.text(); toast('连接失败: ' + r.status + ' ' + t.substring(0,100)); }
+  } catch(e) { toast('连接失败: ' + e.message); }
+}
+
+// ==================== 工具 ====================
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ==================== 测试回复 ====================
+async function testReply() {
+  const text = document.getElementById('reply_content').value || '1';
+  toast('正在测试发送: ' + text + ' ...请先打开目标微信群聊天窗口');
+  const r = await api('POST', '/api/test-reply', { text });
+  if (r.ok) {
+    toast('✅ ' + r.msg);
+  } else {
+    const steps = (r.steps || []).join('\n');
+    const detail = r.msg + '\n\n诊断步骤:\n' + steps;
+    toast('❌ ' + r.msg);
+    console.error('发送失败诊断:', r);
+    alert('❌ 发送失败\n\n' + detail);
+  }
+}
+// ==================== 初始化 ====================
+loadConfig();
+setInterval(() => { refreshStats(); refreshGrabs(); refreshMonitorLog(); }, 5000);
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
