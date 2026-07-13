@@ -11,10 +11,16 @@ import database as db
 class TrayApp:
     """系统托盘应用"""
     
-    def __init__(self):
+    def __init__(self, user_id=None):
         self.tray_icon = None
         self.running = True
         self.reminder_thread = None
+        self.user_id = user_id
+
+    def _owner_id(self):
+        if self.user_id is None:
+            self.user_id = db.get_primary_admin_user_id()
+        return self.user_id
     
     def setup(self):
         """设置托盘图标"""
@@ -72,14 +78,20 @@ class TrayApp:
     
     def start_service(self):
         """开始抢单"""
-        db.set_config("service_status", "running")
-        db.add_log("tray", "手动启动服务")
+        user_id = self._owner_id()
+        if user_id is None:
+            return self._show_notification("\u5fae\u4fe1\u62a2\u5355\u7cfb\u7edf", "\u8bf7\u5148\u5728\u7f51\u9875\u5b8c\u6210\u7ba1\u7406\u5458\u8d26\u53f7\u6ce8\u518c")
+        db.set_config("service_status", "running", user_id)
+        db.add_log("tray", "手动启动服务", user_id)
         self._show_notification("微信抢单系统", "已开始监听抢单")
     
     def pause_service(self):
         """暂停抢单"""
-        db.set_config("service_status", "paused")
-        db.add_log("tray", "手动暂停服务")
+        user_id = self._owner_id()
+        if user_id is None:
+            return self._show_notification("\u5fae\u4fe1\u62a2\u5355\u7cfb\u7edf", "\u8bf7\u5148\u5728\u7f51\u9875\u5b8c\u6210\u7ba1\u7406\u5458\u8d26\u53f7\u6ce8\u518c")
+        db.set_config("service_status", "paused", user_id)
+        db.add_log("tray", "手动暂停服务", user_id)
         self._show_notification("微信抢单系统", "已暂停抢单")
     
     def show_about(self):
@@ -92,8 +104,10 @@ class TrayApp:
     def quit_app(self):
         """退出应用"""
         self.running = False
-        db.set_config("service_status", "stopped")
-        db.add_log("tray", "应用退出")
+        user_id = self._owner_id()
+        if user_id is not None:
+            db.set_config("service_status", "stopped", user_id)
+            db.add_log("tray", "应用退出", user_id)
         if self.tray_icon:
             self.tray_icon.stop()
         os._exit(0)
@@ -115,11 +129,15 @@ class TrayApp:
             try:
                 now = datetime.now()
                 today = now.date()
+                user_id = self._owner_id()
+                if user_id is None:
+                    time.sleep(30)
+                    continue
                 
                 # 每日提醒（早上8点或首次开机）
-                if db.get_config("today_reminder") == "true":
+                if db.get_config("today_reminder", user_id) == "true":
                     if last_reminder_date != today and now.hour >= 8:
-                        schedule = db.get_today_schedule()
+                        schedule = db.get_today_schedule(user_id)
                         if schedule:
                             msg = f"今日 {today.strftime('%m月%d日')} 课程:\n"
                             for s in schedule:
@@ -133,9 +151,9 @@ class TrayApp:
                         last_reminder_date = today
                 
                 # 课前提醒
-                if db.get_config("pre_class_reminder") == "true":
-                    pre_min = int(db.get_config("pre_class_minutes") or "15")
-                    schedule = db.get_today_schedule()
+                if db.get_config("pre_class_reminder", user_id) == "true":
+                    pre_min = int(db.get_config("pre_class_minutes", user_id) or "15")
+                    schedule = db.get_today_schedule(user_id)
                     for s in schedule:
                         key = f"{s['id']}_{s['start_time']}"
                         reminder_time = datetime.strptime(s["start_time"], "%H:%M") - timedelta(minutes=pre_min)
@@ -159,9 +177,9 @@ class TrayApp:
                 time.sleep(60)
 
 
-def run_tray():
+def run_tray(user_id=None):
     """启动系统托盘"""
-    tray = TrayApp()
+    tray = TrayApp(user_id)
     tray.setup()
     if tray.tray_icon:
         tray.run()

@@ -4,3 +4,6 @@ __pycache__/
 .env
 venv/
 lib/
+server_output.txt
+@AutomationLog.txt
+*.log

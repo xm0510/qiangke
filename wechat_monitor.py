@@ -1,5 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
-"""[WX] Monitor v4.4 - current desktop chat mode"""
+"""[WX] Monitor v4.5 - low-latency current desktop chat mode"""
 import time, re, json, os, sys, threading, hashlib
 from datetime import datetime
 
@@ -24,9 +24,10 @@ def get_monitor_log():
 
 
 class WeChatMonitor:
-    def __init__(self, config_getter, on_grab=None):
+    def __init__(self, config_getter, on_grab=None, user_id=None):
         self.get_cfg = config_getter
         self.on_grab = on_grab
+        self.user_id = user_id
         self.running = False
         self.thread = None
         self._uia = None
@@ -35,6 +36,9 @@ class WeChatMonitor:
         self._current_group = None  # Track which group is currently open
         self._recent_grabs = {}  # group/message debounce to avoid duplicate replies
         self._last_reply_at = {}  # per group cooldown
+        self._last_quote_requested = False
+        self._last_quote_applied = False
+        self._last_send_elapsed_ms = 0
 
     def _ensure_uia(self):
         if self._uia is None:
@@ -57,7 +61,7 @@ class WeChatMonitor:
         self.running = True
         self.thread = threading.Thread(target=self._loop, daemon=True)
         self.thread.start()
-        _mlog('[WX] Started v4.4 current-chat mode')
+        _mlog('[WX] Started v4.5 low-latency current-chat mode')
 
     def stop(self):
         self.running = False
@@ -81,22 +85,15 @@ class WeChatMonitor:
                 if not wx:
                     if verbose or self._scan_count % 10 == 0:
                         _mlog(f'[WX] #{self._scan_count}: no window')
-                    time.sleep(3)
+                    time.sleep(1)
                     self._scan_count += 1
                     continue
 
                 if self._scan_count == 0:
                     _mlog(f'[WX] Found: {wx.ClassName}')
-                    try:
-                        import ctypes
-                        hwnd = wx.NativeWindowHandle
-                        ctypes.windll.user32.ShowWindow(hwnd, 9)
-                        time.sleep(0.3)
-                        ctypes.windll.user32.SetForegroundWindow(hwnd)
-                        time.sleep(0.3)
-                    except: pass
+                    self._restore_wechat_window(wx, force_foreground=True)
 
-                groups = db.get_monitored_groups(enabled_only=True)
+                groups = db.get_monitored_groups(enabled_only=True, user_id=self.user_id)
                 # Current desktop chat mode can run even when no group is configured.
                 # If a group exists, its name is only used as log/storage label.
                 if not groups:
@@ -118,9 +115,9 @@ class WeChatMonitor:
                     _mlog(f'[WX] {gname}: {len(msgs)} new msgs')
                     for msg in msgs:
                         self._on_new_message(gname, msg)
-                time.sleep(0.2)
-
-                time.sleep(0.8)
+                # Screenshot hashing already prevents duplicate work. A single short
+                # pause keeps CPU use reasonable without adding a full second of lag.
+                time.sleep(0.18)
                 self._scan_count += 1
                 if self._scan_count > 5:
                     verbose = False
@@ -128,7 +125,7 @@ class WeChatMonitor:
             except Exception as e:
                 _mlog(f'[WX] loop err: {e}')
                 self._scan_count += 1
-                time.sleep(5)
+                time.sleep(1)
         _mlog('[WX] Exit')
 
     def _key_tap(self, vk, hold=0.025):
@@ -186,31 +183,245 @@ class WeChatMonitor:
         except:
             return False
 
-    def _find_wechat_window(self, uia):
-        candidates = []
-        for cls in ['WeChatMainWndForPC', 'Qt51514QWindowIcon', '']:
-            for name in ['\u5fae\u4fe1', 'WeChat', '']:
+    def _restore_wechat_window(self, wx, force_foreground=False):
+        """Restore a minimized WeChat window and optionally bring it to the front."""
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            kernel32 = ctypes.windll.kernel32
+            hwnd = int(getattr(wx, 'NativeWindowHandle', 0) or 0)
+            if not hwnd or not user32.IsWindow(hwnd):
+                return False
+            was_iconic = bool(user32.IsIconic(hwnd))
+            if was_iconic or not user32.IsWindowVisible(hwnd):
+                user32.ShowWindowAsync(hwnd, 9)  # SW_RESTORE
+            if force_foreground or was_iconic:
+                foreground = user32.GetForegroundWindow()
+                current_thread = kernel32.GetCurrentThreadId()
+                foreground_thread = user32.GetWindowThreadProcessId(foreground, None) if foreground else 0
+                target_thread = user32.GetWindowThreadProcessId(hwnd, None)
+                attached_foreground = False
+                attached_target = False
                 try:
-                    kw = {}
-                    if cls: kw['ClassName'] = cls
-                    if name: kw['Name'] = name
-                    w = uia.WindowControl(**kw)
-                    if w.Exists(maxSearchSeconds=1.0):
-                        try:
-                            r = w.BoundingRectangle
-                            candidates.append((r.width() * r.height(), w, cls or '*', name or '*', (r.left, r.top, r.right, r.bottom)))
-                        except:
-                            pass
-                except:
-                    pass
-        # Pick the largest valid WeChat-like window. Do not return zero-size/stale objects.
+                    if foreground_thread and foreground_thread != current_thread:
+                        attached_foreground = bool(user32.AttachThreadInput(current_thread, foreground_thread, True))
+                    if target_thread and target_thread != current_thread and target_thread != foreground_thread:
+                        attached_target = bool(user32.AttachThreadInput(current_thread, target_thread, True))
+                    user32.ShowWindowAsync(hwnd, 9)
+                    flags = 0x0001 | 0x0002 | 0x0040  # no-size, no-move, show
+                    user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, flags)  # topmost briefly
+                    user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, flags)
+                    user32.BringWindowToTop(hwnd)
+                    user32.SetForegroundWindow(hwnd)
+                    user32.SetFocus(hwnd)
+                finally:
+                    if attached_target:
+                        user32.AttachThreadInput(current_thread, target_thread, False)
+                    if attached_foreground:
+                        user32.AttachThreadInput(current_thread, foreground_thread, False)
+                time.sleep(0.25)
+            return bool(user32.IsWindowVisible(hwnd)) and not bool(user32.IsIconic(hwnd))
+        except Exception as e:
+            _mlog(f'[WX] restore window failed: {e}')
+            return False
+
+    def _find_wechat_window(self, uia):
+        """Find only real top-level WeChat windows; never fall back to an arbitrary window."""
+        candidates = []
+        seen = set()
+
+        def add_candidate(w, source):
+            try:
+                hwnd = int(getattr(w, 'NativeWindowHandle', 0) or 0)
+                if hwnd and hwnd in seen:
+                    return
+                name = (getattr(w, 'Name', '') or '').strip()
+                cls = getattr(w, 'ClassName', '') or ''
+                is_wechat = (
+                    cls == 'WeChatMainWndForPC' or
+                    (cls == 'Qt51514QWindowIcon' and name in ('\u5fae\u4fe1', 'WeChat', 'Weixin')) or
+                    name in ('\u5fae\u4fe1', 'WeChat', 'Weixin')
+                )
+                if not is_wechat:
+                    return
+                if hwnd:
+                    seen.add(hwnd)
+                r = w.BoundingRectangle
+                area = max(0, r.width()) * max(0, r.height())
+                candidates.append((area, w, source, name, cls, (r.left, r.top, r.right, r.bottom)))
+            except:
+                pass
+
+        try:
+            for w in uia.GetRootControl().GetChildren():
+                add_candidate(w, 'desktop')
+        except:
+            pass
+        for spec in (
+            {'ClassName': 'WeChatMainWndForPC'},
+            {'ClassName': 'Qt51514QWindowIcon', 'Name': '\u5fae\u4fe1'},
+            {'Name': '\u5fae\u4fe1'},
+            {'Name': 'WeChat'},
+            {'Name': 'Weixin'},
+        ):
+            try:
+                w = uia.WindowControl(searchDepth=1, **spec)
+                if w.Exists(maxSearchSeconds=0.3):
+                    add_candidate(w, str(spec))
+            except:
+                pass
+
         candidates.sort(key=lambda x: x[0], reverse=True)
-        for _, w, cls, name, rect in candidates:
+        for _, w, *_ in candidates:
             if self._is_valid_wechat_window(w):
                 return w
+        # Minimized Qt windows can report an unusable rectangle. Restore only a
+        # confirmed WeChat handle, then validate it again.
+        for _, w, *_ in candidates:
+            if self._restore_wechat_window(w, force_foreground=True) and self._is_valid_wechat_window(w):
+                return w
         if candidates and (self._scan_count % 5 == 0):
-            _mlog(f'[WX] found only invalid window candidates: {[(c[2], c[3], c[4]) for c in candidates[:3]]}')
+            _mlog(f'[WX] found only invalid WeChat candidates: {[c[3:] for c in candidates[:3]]}')
         return None
+
+    @staticmethod
+    def _clean_scanned_title(raw):
+        text = re.sub(r'\s+', '', str(raw or '')).strip()
+        if not text:
+            return ''
+        if '\u7fa4' in text:
+            text = text[:text.find('\u7fa4') + 1]
+        else:
+            text = re.split(r'[|??\[???]', text, maxsplit=1)[0]
+        text = text.strip(' .??,?:?;?-_?()??<>??"\'')
+        if len(text) < 2 or len(text) > 50:
+            return ''
+        if text in {'\u641c\u7d22', '\u5fae\u4fe1', 'WeChat', 'Weixin', '\u670d\u52a1\u53f7', '\u8ba2\u9605\u53f7'}:
+            return ''
+        if re.fullmatch(r'[\d:?/\-.]+', text):
+            return ''
+        if text.startswith(('[' , '\u3010')):
+            return ''
+        return text
+
+    def _scan_groups_uia(self, wx):
+        names = []
+        try:
+            wr = wx.BoundingRectangle
+            max_x = wr.left + int(wr.width() * 0.42)
+            seen_controls = [0]
+            def walk(ctrl, depth=0):
+                if depth > 14 or seen_controls[0] > 1200:
+                    return
+                seen_controls[0] += 1
+                try:
+                    ctype = getattr(ctrl, 'ControlTypeName', '') or ''
+                    if ctype == 'ListItemControl':
+                        rr = ctrl.BoundingRectangle
+                        if rr.left < max_x and rr.top > wr.top + 45 and rr.bottom < wr.bottom:
+                            raw = (getattr(ctrl, 'Name', '') or '').splitlines()[0]
+                            title = self._clean_scanned_title(raw)
+                            if title:
+                                names.append(title)
+                    for child in ctrl.GetChildren():
+                        walk(child, depth + 1)
+                except:
+                    pass
+            walk(wx)
+        except:
+            pass
+        return list(dict.fromkeys(names))
+
+    def _scan_groups_windows_ocr(self, wx):
+        """Scan visible Qt WeChat sessions with the free built-in Windows OCR engine."""
+        try:
+            import subprocess, tempfile, ctypes
+            from PIL import ImageGrab
+            if not self._restore_wechat_window(wx, force_foreground=True):
+                return [], 0
+            hwnd = int(getattr(wx, 'NativeWindowHandle', 0) or 0)
+            if hwnd and ctypes.windll.user32.GetForegroundWindow() != hwnd:
+                _mlog('[SCAN] WeChat could not be brought to foreground; OCR cancelled')
+                return [], 0
+            time.sleep(0.35)
+            wr = wx.BoundingRectangle
+            left = wr.left + 45
+            top = wr.top + 35
+            right = min(wr.left + 455, wr.right - 300)
+            bottom = wr.bottom - 20
+            if right - left < 260 or bottom - top < 300:
+                return [], 0
+            script = os.path.join(BASE_DIR, 'windows_ocr.ps1')
+            if not os.path.exists(script):
+                _mlog('[SCAN] windows_ocr.ps1 missing')
+                return [], 0
+            with tempfile.TemporaryDirectory(prefix='wechat-scan-') as td:
+                image_path = os.path.join(td, 'sessions.png')
+                ImageGrab.grab(bbox=(left, top, right, bottom)).save(image_path)
+                creationflags = 0x08000000 if os.name == 'nt' else 0
+                proc = subprocess.run(
+                    ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-Path', image_path],
+                    capture_output=True, text=True, encoding='utf-8', errors='replace',
+                    timeout=30, creationflags=creationflags,
+                )
+            if proc.returncode != 0:
+                _mlog('[SCAN] Windows OCR failed: ' + (proc.stderr or '')[:180])
+                return [], 0
+            records = json.loads(proc.stdout or '[]')
+            if isinstance(records, dict):
+                records = [records]
+            rows = []
+            for item in records:
+                try:
+                    y = float(item.get('Y', 0)); h = float(item.get('B', 0)) - y
+                    if y >= 70:
+                        rows.append({'text': item.get('Text', ''), 'x': float(item.get('X', 0)), 'y': y, 'h': h})
+                except:
+                    pass
+            rows.sort(key=lambda x: (x['y'], x['x']))
+            gap = max(45.0, (bottom - top) * 0.045)
+            clusters = []
+            for row in rows:
+                if not clusters or row['y'] - clusters[-1][-1]['y'] > gap:
+                    clusters.append([row])
+                else:
+                    clusters[-1].append(row)
+
+            visible_titles = []
+            likely_groups = []
+            for cluster in clusters:
+                min_y = min(x['y'] for x in cluster)
+                title_rows = [x for x in cluster if x['h'] >= 13 and x['y'] <= min_y + 22 and x['x'] < (right-left)-45]
+                title_rows = [x for x in title_rows if not re.match(r'^\s*[\[\u3010]', x['text'] or '')]
+                if not title_rows:
+                    continue
+                picked = max(title_rows, key=lambda x: (x['h'], len(x['text'] or '')))
+                title = self._clean_scanned_title(picked['text'])
+                if not title:
+                    continue
+                visible_titles.append(title)
+                compact_cluster = ''.join(re.sub(r'\s+', '', x['text'] or '') for x in cluster)
+                likely = ('\u7fa4' in title or bool(re.search(r'[\(\uff08]\d{2,}[\)\uff09]', title)) or
+                          bool(re.search(r'[\[\u3010]\d+\u6761[\]\u3011].*[:\uff1a]', compact_cluster)))
+                if likely:
+                    likely_groups.append(title)
+            visible_titles = list(dict.fromkeys(visible_titles))
+            likely_groups = list(dict.fromkeys(likely_groups))
+            # Prefer likely groups. If OCR cannot classify any row, return visible
+            # session titles rather than falsely reporting that scanning is broken.
+            return (likely_groups or visible_titles), len(visible_titles)
+        except Exception as e:
+            _mlog(f'[SCAN] OCR scan error: {e}')
+            return [], 0
+
+    def scan_visible_groups(self, wx):
+        if not self._restore_wechat_window(wx, force_foreground=True):
+            return [], 'none', 0
+        names = self._scan_groups_uia(wx)
+        if names:
+            return names, 'uia', len(names)
+        names, visible_count = self._scan_groups_windows_ocr(wx)
+        return names, 'windows_ocr', visible_count
 
     def _switch_to_group(self, wx, group_name):
         """Navigate to a group by clicking it in the sidebar or using Ctrl+F search"""
@@ -444,7 +655,9 @@ class WeChatMonitor:
         """
         now = time.time()
         is_screen_change = str(msg).startswith('[SCREEN_CHANGE]')
-        cooldown = 8 if is_screen_change else 20
+        # The message hash below is the real duplicate guard. Keep only a short
+        # group cooldown so two legitimate orders arriving close together are not lost.
+        cooldown = 3 if is_screen_change else 2
         last = self._last_reply_at.get(group_name, 0)
         if now - last < cooldown:
             _mlog(f'[SKIP] {group_name}: cooldown {now-last:.1f}s < {cooldown}s')
@@ -456,6 +669,7 @@ class WeChatMonitor:
             _mlog(f'[SKIP] {group_name}: duplicate message within 60s')
             return
 
+        started_at = time.perf_counter()
         from ai_matcher import OrderMatcher
         matcher = OrderMatcher(self.get_cfg)
         match = matcher.match(msg)
@@ -469,6 +683,11 @@ class WeChatMonitor:
             time.sleep(delay / 1000.0)
 
         ok = self._send_reply(reply, msg)
+        total_ms = int((time.perf_counter() - started_at) * 1000)
+        _mlog(
+            f'[PERF] match+reply={total_ms}ms send={self._last_send_elapsed_ms}ms '
+            f'quote={self._last_quote_applied if self._last_quote_requested else "off"}'
+        )
         if ok:
             self._last_reply_at[group_name] = time.time()
             self._recent_grabs[msg_key] = time.time()
@@ -486,29 +705,36 @@ class WeChatMonitor:
             ai_extracted_day=ext.get('extracted_day'),
             ai_extracted_start=ext.get('extracted_start'),
             ai_extracted_duration=ext.get('extracted_duration'),
+            user_id=self.user_id,
         )
-        db.add_log('grab', f'{group_name}:{match.get("type","")} - {str(msg)[:30]}')
+        db.add_log('grab', f'{group_name}:{match.get("type","")} - {str(msg)[:30]}', user_id=self.user_id)
         if self.on_grab:
             self.on_grab(rid, match)
 
-    def _send_reply(self, text, original_msg=None):
+    def _send_reply(self, text, original_msg=None, quote_override=None):
         """Send reply with optional quoting support"""
+        send_started_at = time.perf_counter()
+        self._last_quote_requested = (self.get_cfg('quote_reply') == 'true') if quote_override is None else bool(quote_override)
+        self._last_quote_applied = False
         try:
             self._ensure_uia()
             uia = self._uia
             wx = self._find_wechat_window(uia)
             if not wx: return False
+            if not self._restore_wechat_window(wx, force_foreground=True): return False
 
             try: wx.SetFocus()
             except: pass
             time.sleep(0.05)
 
-            quote = self.get_cfg('quote_reply') == 'true'
+            quote = self._last_quote_requested
+            quoted = False
             
             if quote:
                 _mlog(f'[REPLY] Quoting enabled, will quote then reply')
                 try:
                     quoted = self._do_quote_reply(wx, uia, original_msg)
+                    self._last_quote_applied = quoted
                     if not quoted:
                         _mlog('[REPLY] Quote not applied; sending direct reply')
                     time.sleep(0.08)
@@ -527,11 +753,13 @@ class WeChatMonitor:
                     time.sleep(0.05)
                 except: pass
 
-            # Clear and paste text
-            try:
-                self._hotkey('ctrl', 'a')
-                time.sleep(0.05)
-            except: pass
+            # Do not Ctrl+A after applying a quote: on some WeChat versions that
+            # selects and replaces the quote card itself.
+            if not quoted:
+                try:
+                    self._hotkey('ctrl', 'a')
+                    time.sleep(0.02)
+                except: pass
 
             try:
                 try: old = uia.GetClipboardText()
@@ -551,8 +779,10 @@ class WeChatMonitor:
             time.sleep(0.03)
             self._hotkey('enter')
             time.sleep(0.05)
+            self._last_send_elapsed_ms = int((time.perf_counter() - send_started_at) * 1000)
             return True
         except Exception as e:
+            self._last_send_elapsed_ms = int((time.perf_counter() - send_started_at) * 1000)
             _mlog(f'[REPLY] err: {e}')
             return False
 
@@ -567,16 +797,28 @@ class WeChatMonitor:
         quote_word = '\u5f15\u7528'
         try:
             wr = wx.BoundingRectangle
+            deadline = time.perf_counter() + 1.2
 
             def click_quote_menu():
+                # Fast path for standard WeChat context menus.
+                for name in (quote_word, 'Quote'):
+                    try:
+                        item = uia.MenuItemControl(searchDepth=8, Name=name)
+                        if item.Exists(maxSearchSeconds=0.12):
+                            item.Click()
+                            _mlog(f'[QUOTE] clicked direct menu item: {name}')
+                            return True
+                    except:
+                        pass
                 seen = []
                 def is_quote_name(name):
                     name = (name or '').strip()
                     low = name.lower()
                     return (quote_word in name) or ('quote' in low)
 
-                def walk(ctrl, depth=0, count=[0]):
-                    if depth > 7 or count[0] > 260:
+                count = [0]
+                def walk(ctrl, depth=0):
+                    if time.perf_counter() > deadline or depth > 6 or count[0] > 180:
                         return False
                     count[0] += 1
                     try:
@@ -609,6 +851,8 @@ class WeChatMonitor:
                 return False
 
             def right_click_and_quote(x, y, label):
+                if time.perf_counter() > deadline:
+                    return False
                 try:
                     _mlog(f'[QUOTE] right click {label} ({x},{y})')
                     uia.RightClick(int(x), int(y))
@@ -669,14 +913,16 @@ class WeChatMonitor:
                 top = wr.top + int(wr.height() * 0.12)
                 bottom = wr.bottom - int(wr.height() * 0.22)
 
-            xs = [left + 70, left + 150, left + 260, left + 390, int((left + right) / 2)]
-            ys = [bottom - 35, bottom - 80, bottom - 130, bottom - 190]
+            # Incoming bubbles are left aligned. Try the newest area first and
+            # keep fallback bounded so quoting never stalls grabbing.
+            xs = [left + 90, left + 210]
+            ys = [bottom - 40, bottom - 90, bottom - 145]
             candidates = []
             for y in ys:
                 for x in xs:
                     if left + 5 <= x <= right - 5 and top + 5 <= y <= bottom - 5:
                         candidates.append((x, y))
-            candidates = candidates[:10]
+            candidates = candidates[:6]
 
             _mlog(f'[QUOTE] bbox={left},{top},{right},{bottom}; candidates={len(candidates)}')
             for msg_x, msg_y in candidates:

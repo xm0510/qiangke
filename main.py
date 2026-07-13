@@ -23,6 +23,7 @@ def main():
     
     # 1. 初始化数据库
     db.init_db()
+    owner_user_id = db.get_primary_admin_user_id()
     
     # 2. 启动 Flask 服务器（后台线程）
     server_thread = threading.Thread(
@@ -35,18 +36,19 @@ def main():
     time.sleep(1)  # 等待服务器启动
     
     # 3. 检查是否需要自动启动
-    auto_start = db.get_config("auto_start") == "true"
+    auto_start = owner_user_id is not None and db.get_config("auto_start", owner_user_id) == "true"
     
     # 4. 启动微信监听（如果服务状态是 running）
-    status = db.get_config("service_status") or "stopped"
+    status = db.get_config("service_status", owner_user_id) if owner_user_id is not None else "stopped"
     wechat_monitor = None
     
     if status == "running" or auto_start:
         try:
             from wechat_monitor import WeChatMonitor
-            wechat_monitor = WeChatMonitor(db.get_config)
+            getter = lambda key: db.get_config(key, owner_user_id)
+            wechat_monitor = WeChatMonitor(getter, user_id=owner_user_id)
             wechat_monitor.start()
-            db.set_config("service_status", "running")
+            db.set_config("service_status", "running", owner_user_id)
         except Exception as e:
             print(f"[启动] 微信监听启动失败: {e}")
     
@@ -59,7 +61,7 @@ def main():
     # 6. 启动系统托盘
     try:
         from tray_app import run_tray
-        run_tray()
+        run_tray(owner_user_id)
     except ImportError:
         print("[托盘] pystray 未安装，使用命令行模式（按 Ctrl+C 退出）")
         try:
@@ -71,7 +73,8 @@ def main():
     # 清理
     if wechat_monitor:
         wechat_monitor.stop()
-    db.set_config("service_status", "stopped")
+    if owner_user_id is not None:
+        db.set_config("service_status", "stopped", owner_user_id)
     print("已退出")
 
 

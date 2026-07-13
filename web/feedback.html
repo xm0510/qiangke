@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>课程反馈</title>
+<style>
+:root{--purple:#7c3aed;--purple2:#a855f7;--ink:#1f1636;--muted:#6b7280;--line:#e8e2f2;--bg:#f5f3ff;--ok:#059669;--orange:#ea580c}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}.top{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,var(--purple),var(--purple2));box-shadow:0 8px 25px rgba(76,29,149,.22)}.topin{max-width:1080px;margin:auto;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{color:white;text-decoration:none;font-size:19px;font-weight:900}.nav{display:flex;align-items:center;gap:5px}.nav a,.nav button{border:0;background:transparent;color:#f3e8ff;text-decoration:none;padding:8px 10px;border-radius:10px;font:inherit;cursor:pointer}.nav a.active,.nav a:hover,.nav button:hover{background:rgba(255,255,255,.18);color:white}.wrap{max-width:1080px;margin:18px auto;padding:0 14px 40px}.hero,.panel{background:white;border:1px solid var(--line);border-radius:18px;box-shadow:0 7px 24px rgba(55,33,85,.07)}.hero{padding:18px;background:linear-gradient(135deg,#fff,#faf5ff)}.hero h1{margin:0 0 6px;font-size:24px}.hero p{margin:0;color:var(--muted);font-size:14px}.tools{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-top:16px}.tools input,.field input,.field textarea,.field select{border:1px solid #d8d1e5;border-radius:10px;padding:10px 11px;font:inherit;background:white}.tools input{min-height:42px}.btn{border:0;border-radius:10px;padding:10px 14px;font:inherit;font-weight:750;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:5px}.btn.primary{color:white;background:linear-gradient(135deg,var(--purple),var(--purple2))}.btn.out{color:#5b21b6;background:white;border:1px solid #c4b5fd}.btn.soft{color:#5b21b6;background:#f3e8ff}.btn.green{color:white;background:var(--ok)}.btn:disabled{opacity:.55;cursor:not-allowed}.hint{margin-top:12px;padding:11px 13px;border-radius:12px;background:#fff7ed;color:#9a3412;font-size:13px}.section-title{display:flex;align-items:end;justify-content:space-between;margin:22px 2px 10px}.section-title h2{font-size:18px;margin:0}.section-title span{font-size:12px;color:var(--muted)}.candidate-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.course{background:white;border:1px solid var(--line);border-radius:16px;padding:15px;box-shadow:0 4px 15px rgba(55,33,85,.05)}.course.review{border-left:5px solid #f59e0b}.course.main{border-left:5px solid var(--purple)}.course-head{display:flex;justify-content:space-between;gap:10px}.course h3{font-size:17px;margin:0}.tag{white-space:nowrap;font-size:12px;font-weight:800;padding:4px 8px;border-radius:999px;background:#ede9fe;color:#6d28d9}.review .tag{background:#ffedd5;color:#c2410c}.meta{font-size:13px;color:var(--muted);line-height:1.75;margin:8px 0}.entry-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-top:1px dashed #eee7f5;font-size:13px}.entry-row a{color:#6d28d9;text-decoration:none;font-weight:700}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.done{font-size:12px;color:var(--ok);font-weight:800}.empty{grid-column:1/-1;padding:35px;text-align:center;background:white;border:1px dashed #c4b5fd;border-radius:16px;color:var(--muted)}.panel{padding:17px}.history-item{padding:14px 0;border-bottom:1px solid #eee}.history-item:last-child{border-bottom:0}.history-head{display:flex;justify-content:space-between;gap:10px}.history-head b{font-size:15px}.history-text{margin:9px 0;color:#4b3c63;white-space:pre-wrap;line-height:1.65;font-size:14px}.small{font-size:12px;color:var(--muted)}.modal{position:fixed;inset:0;z-index:50;background:rgba(25,15,39,.55);display:grid;place-items:center;padding:12px}.modal.hidden{display:none}.dialog{width:min(720px,100%);max-height:94vh;overflow:auto;background:white;border-radius:18px;padding:18px;box-shadow:0 24px 70px rgba(0,0,0,.3)}.dialog-head{display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:13px}.dialog h2{margin:0;font-size:20px}.close{border:0;background:#f3f4f6;border-radius:50%;width:34px;height:34px;font-size:20px;cursor:pointer}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:13px;font-weight:750}.field textarea{resize:vertical;min-height:75px}.field textarea.output{min-height:180px;line-height:1.65}.notice{display:none;margin:10px 0;padding:10px 12px;border-radius:10px;background:#fffbeb;color:#92400e;font-size:13px}.notice.show{display:block}.toast{position:fixed;bottom:25px;left:50%;transform:translateX(-50%);z-index:80;background:#17122b;color:white;padding:12px 20px;border-radius:12px;font-weight:800;box-shadow:0 12px 35px rgba(0,0,0,.3)}@media(max-width:700px){.topin{align-items:flex-start}.nav{max-width:65vw;overflow:auto}.nav a,.nav button{white-space:nowrap;padding:7px}.wrap{margin-top:12px}.candidate-grid,.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.hero h1{font-size:21px}.btn{min-height:42px}.actions .btn{flex:1}.dialog{padding:15px}.history-head{display:block}}
+</style>
+</head>
+<body>
+<nav class="top"><div class="topin"><a class="brand" href="/feedback.html">课程反馈</a><div class="nav"><a href="/schedule.html">课表</a><a class="active" href="/feedback.html">反馈</a><a href="/">配置</a><span id="userBadge" class="small" style="color:#f3e8ff"></span><button onclick="logout()">退出</button></div></div></nav>
+<main class="wrap">
+  <section class="hero">
+    <h1>上课反馈与手机提醒</h1>
+    <p>主课每节一份反馈；同一学生同一天的多次抗遗忘自动合并成一份反馈。</p>
+    <div class="tools">
+      <button class="btn out" onclick="moveDate(-1)">前一天</button>
+      <input id="feedbackDate" type="date" onchange="loadCandidates()">
+      <button class="btn out" onclick="moveDate(1)">后一天</button>
+      <button class="btn soft" onclick="goToday()">今天</button>
+      <a id="dayCalendar" class="btn green" href="#">加入当天课程到手机日历</a>
+    </div>
+    <div class="hint">手机提醒不收取费用：下载日历文件后选择系统日历导入，每节课会设置课前 30 分钟和 10 分钟两次提醒。</div>
+  </section>
+
+  <div class="section-title"><h2>当天课程</h2><span id="candidateSummary">正在加载…</span></div>
+  <section id="candidateGrid" class="candidate-grid"></section>
+
+  <div class="section-title"><h2>最近反馈</h2><span>仅显示当前登录用户的数据</span></div>
+  <section id="history" class="panel"></section>
+</main>
+
+<div id="feedbackModal" class="modal hidden" onclick="if(event.target===this)closeModal()">
+  <div class="dialog">
+    <div class="dialog-head"><div><h2 id="modalTitle">填写反馈</h2><div id="modalMeta" class="small"></div></div><button class="close" onclick="closeModal()">×</button></div>
+    <div class="form-grid">
+      <div class="field full"><label>本次内容</label><textarea id="classContent" placeholder="例如：复习一般过去时，完成阅读理解训练"></textarea></div>
+      <div class="field"><label>课堂专注度（1–5）</label><select id="focusRating"><option value="5">5 很专注</option><option value="4">4 较专注</option><option value="3" selected>3 一般</option><option value="2">2 容易分心</option><option value="1">1 需要重点改善</option></select></div>
+      <div class="field"><label>知识掌握度（1–5）</label><select id="masteryRating"><option value="5">5 掌握扎实</option><option value="4">4 掌握较好</option><option value="3" selected>3 基本掌握</option><option value="2">2 仍需巩固</option><option value="1">1 需要重新讲解</option></select></div>
+      <div class="field"><label>存在问题</label><textarea id="problems" placeholder="只填写实际观察到的问题"></textarea></div>
+      <div class="field"><label>课后任务</label><textarea id="homework" placeholder="例如：完成练习第 1–10 题"></textarea></div>
+      <div class="field"><label>下次计划</label><textarea id="nextPlan" placeholder="例如：检查作业并复习错题"></textarea></div>
+      <div class="field"><label>教师备注（可选）</label><textarea id="teacherNotes" placeholder="内部补充信息"></textarea></div>
+      <div class="field full"><label>反馈正文</label><textarea id="generatedText" class="output" placeholder="点击“免费生成”，或直接手动填写"></textarea></div>
+    </div>
+    <div id="modalNotice" class="notice"></div>
+    <div class="actions">
+      <button id="templateBtn" class="btn primary" onclick="generate(false)">免费生成</button>
+      <button id="aiBtn" class="btn soft" onclick="generate(true)">AI 润色（可选）</button>
+      <button class="btn green" onclick="saveFeedback()">保存</button>
+      <button class="btn out" onclick="copyCurrent()">复制反馈</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var token=localStorage.getItem('xm_token')||'',currentCandidate=null;
+function authHeaders(json){var h={};if(json)h['Content-Type']='application/json';if(token)h.Authorization='Bearer '+token;return h}
+async function api(method,path,body){var opt={method:method,headers:authHeaders(body!==undefined)};if(body!==undefined)opt.body=JSON.stringify(body);var r=await fetch(path,opt);if(r.status===401){location.href='/login.html';throw new Error('请重新登录')}var data=await r.json();if(!r.ok||data.ok===false)throw new Error(data.error||'操作失败');return data}
+function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function localDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function parseDate(value){return new Date(value+'T12:00:00')}
+function goToday(){feedbackDate.value=localDate(new Date());loadCandidates()}
+function moveDate(days){var d=parseDate(feedbackDate.value);d.setDate(d.getDate()+days);feedbackDate.value=localDate(d);loadCandidates()}
+function calendarUrl(id){return '/api/schedule/'+id+'/calendar.ics?date='+encodeURIComponent(feedbackDate.value)}
+function renderCandidate(c,index){var isReview=c.feedback_kind==='review',label=isReview?'抗遗忘反馈 ×'+c.review_count:'主课反馈';var rows=c.entries.map(function(e){return '<div class="entry-row"><span>'+esc(e.start_time)+' · '+esc(e.subject_type)+'</span><a href="'+calendarUrl(e.id)+'">单节提醒</a></div>'}).join('');return '<article class="course '+(isReview?'review':'main')+'"><div class="course-head"><h3>'+esc(c.student_name)+'</h3><span class="tag">'+label+'</span></div><div class="meta">'+esc(c.suggested_content)+(isReview?'<br>当天 '+c.review_count+' 次抗遗忘合并生成一份反馈。':'')+'</div>'+rows+'<div class="actions"><button class="btn primary" onclick="openFeedback('+index+')">'+(c.existing_feedback?'修改反馈':'填写反馈')+'</button>'+(c.existing_feedback?'<button class="btn out" onclick="copyCandidate('+index+')">复制</button><span class="done">已保存</span>':'')+'</div></article>'}
+async function loadCandidates(){var date=feedbackDate.value;if(!date)return;dayCalendar.href='/api/calendar/day.ics?date='+encodeURIComponent(date);candidateGrid.innerHTML='<div class="empty">正在加载课程…</div>';try{var r=await api('GET','/api/feedback/candidates?date='+encodeURIComponent(date));window.candidates=r.candidates||[];candidateSummary.textContent=window.candidates.length+' 个反馈项目';candidateGrid.innerHTML=window.candidates.length?window.candidates.map(renderCandidate).join(''):'<div class="empty">当天暂无课程。请先在课表中添加课程，或切换日期。</div>'}catch(e){candidateGrid.innerHTML='<div class="empty">'+esc(e.message)+'</div>'}}
+function value(id){return document.getElementById(id).value}
+function setValue(id,v){document.getElementById(id).value=v==null?'':v}
+function openFeedback(index){currentCandidate=window.candidates[index];var old=currentCandidate.existing_feedback||{};modalTitle.textContent=currentCandidate.student_name+' · '+(currentCandidate.feedback_kind==='review'?'抗遗忘反馈':'主课反馈');modalMeta.textContent=currentCandidate.feedback_date+' · '+(currentCandidate.feedback_kind==='review'?'当天 '+currentCandidate.review_count+' 次复习合并为一份':'单节主课');setValue('classContent',old.class_content||currentCandidate.suggested_content);setValue('focusRating',old.focus_rating||3);setValue('masteryRating',old.mastery_rating||3);setValue('problems',old.problems);setValue('homework',old.homework);setValue('nextPlan',old.next_plan);setValue('teacherNotes',old.teacher_notes);setValue('generatedText',old.generated_text);modalNotice.className='notice';modalNotice.textContent='';feedbackModal.classList.remove('hidden')}
+function closeModal(){feedbackModal.classList.add('hidden');currentCandidate=null}
+function formPayload(){if(!currentCandidate)throw new Error('请先选择课程');return {feedback_kind:currentCandidate.feedback_kind,feedback_date:currentCandidate.feedback_date,schedule_entry_ids:currentCandidate.schedule_entry_ids,class_content:value('classContent'),focus_rating:+value('focusRating'),mastery_rating:+value('masteryRating'),problems:value('problems'),homework:value('homework'),next_plan:value('nextPlan'),teacher_notes:value('teacherNotes'),generated_text:value('generatedText'),generation_method:(currentCandidate.existing_feedback||{}).generation_method||'manual'}}
+async function generate(useAi){var button=useAi?aiBtn:templateBtn,old=button.textContent;button.disabled=true;button.textContent='生成中…';modalNotice.className='notice';try{var body=formPayload();body.use_ai=useAi;var r=await api('POST','/api/feedback/generate',body);setValue('generatedText',r.text);currentCandidate.existing_feedback=r.feedback;currentCandidate.existing_feedback.id=r.id;if(r.warning){modalNotice.textContent=r.warning;modalNotice.className='notice show'}toast(r.method==='ai'?'AI 润色完成':'免费反馈已生成')}catch(e){toast(e.message)}finally{button.disabled=false;button.textContent=old}}
+async function saveFeedback(){try{var r=await api('POST','/api/feedback',formPayload());currentCandidate.existing_feedback=r.feedback;toast('反馈已保存');closeModal();await Promise.all([loadCandidates(),loadHistory()])}catch(e){toast(e.message)}}
+function copyCandidate(index){var c=(window.candidates||[])[index];copyText(c&&c.existing_feedback&&c.existing_feedback.generated_text)}
+function copyHistory(index){var x=(window.historyItems||[])[index];copyText(x&&x.generated_text)}
+function copyText(text){if(!text)return toast('暂无反馈内容');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(function(){toast('已复制')}).catch(function(){fallbackCopy(text)});else fallbackCopy(text)}
+function fallbackCopy(text){var ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('已复制')}
+function copyCurrent(){copyText(value('generatedText'))}
+async function loadHistory(){history.innerHTML='<div class="small">正在加载…</div>';try{var r=await api('GET','/api/feedback?limit=30'),items=r.items||[];window.historyItems=items;history.innerHTML=items.length?items.map(function(x,index){return '<div class="history-item"><div class="history-head"><b>'+esc(x.student_name)+' · '+(x.feedback_kind==='review'?'抗遗忘反馈':'主课反馈')+'</b><span class="small">'+esc(x.feedback_date)+'</span></div><div class="history-text">'+esc(x.generated_text)+'</div><button class="btn out" onclick="copyHistory('+index+')">复制</button></div>'}).join(''):'<div class="small">暂无已保存反馈</div>'}catch(e){history.innerHTML='<div class="small">'+esc(e.message)+'</div>'}}
+function toast(msg){var n=document.createElement('div');n.className='toast';n.textContent=msg;document.body.appendChild(n);setTimeout(function(){n.remove()},2200)}
+async function logout(){try{await fetch('/api/auth/logout',{method:'POST',headers:authHeaders(false)})}catch(e){}localStorage.removeItem('xm_token');localStorage.removeItem('xm_user');location.href='/login.html'}
+async function init(){var me=await api('GET','/api/auth/me');if(me.user)userBadge.textContent=me.user.phone||me.user.nickname||'';feedbackDate.value=localDate(new Date());await Promise.all([loadCandidates(),loadHistory()])}
+init().catch(function(e){toast(e.message)})
+</script>
+</body>
+</html>

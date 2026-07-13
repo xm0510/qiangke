@@ -66,7 +66,13 @@
   .hidden { display:none !important; }
   .section-sub { margin-top:12px; padding:12px; background:var(--bg); border-radius:6px; }
   .section-sub h4 { font-size:13px; color:var(--muted); margin-bottom:8px; }
-  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#333; color:#fff; padding:10px 24px; border-radius:20px; font-size:13px; z-index:9999; animation:fadeInUp .3s; }
+  .toast { position:fixed; bottom:26px; left:50%; transform:translateX(-50%); background:#17122b; color:#fff; padding:14px 26px; border-radius:16px; font-size:15px; font-weight:800; z-index:9999; animation:fadeInUp .3s; box-shadow:0 18px 45px rgba(0,0,0,.25); max-width:min(92vw,720px); text-align:center; }
+  .reminder-banner { display:none; grid-column:1/-1; background:linear-gradient(135deg,#fff7ed,#fee2e2); border:2px solid #fb923c; color:#7c2d12; border-radius:18px; padding:16px 18px; box-shadow:0 18px 45px rgba(251,146,60,.22); }
+  .reminder-banner.show { display:block; animation:pulseWarn 1.8s infinite; }
+  .reminder-banner.urgent { background:linear-gradient(135deg,#ef4444,#f97316); border-color:#dc2626; color:white; }
+  .reminder-banner h3 { margin-bottom:8px; font-size:18px; }
+  .reminder-banner ul { margin-left:18px; line-height:1.8; font-weight:800; }
+  @keyframes pulseWarn { 0%,100%{transform:scale(1)} 50%{transform:scale(1.01)} }
   @keyframes fadeInUp { from { opacity:0; transform:translateX(-50%) translateY(20px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
   .conflict-banner { background:#FFF3E0; border:1px solid #FFE0B2; border-radius:6px; padding:10px; margin-top:8px; font-size:12px; }
   .model-preset { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
@@ -85,6 +91,7 @@
 <div class="tab-nav">
   <a href="/" class="active">配置面板</a>
   <a href="/schedule.html">课表管理</a>
+  <a href="/feedback.html">&#35838;&#31243;&#21453;&#39304;</a>
 </div>
 
 <div class="header">
@@ -177,7 +184,7 @@
       <button class="btn btn-blue" onclick="scanGroups()" id="btnScan">🔍 自动扫描微信群</button>
     </div>
     <div id="groupList" style="max-height:150px;overflow-y:auto;margin-top:8px;font-size:13px"></div>
-    <p id="scanTip" style="font-size:11px;color:var(--muted);margin-top:4px">点「自动扫描」自动发现微信中的群聊（需微信已登录并显示聊天列表）</p>
+    <p id="scanTip" style="font-size:11px;color:var(--muted);margin-top:4px">扫描时会自动恢复并显示微信窗口；新版微信使用本机 OCR 识别当前可见群聊。</p>
   </div>
 
   <!-- AI 智能识别（修复#4: 多模型支持） -->
@@ -192,8 +199,8 @@
       <div class="row">
         <label>模型选择</label>
         <div class="model-preset" id="modelPresets">
-          <button class="preset-btn active" onclick="selectModel('openai')">OpenAI (GPT-4o-mini)</button>
-          <button class="preset-btn" onclick="selectModel('deepseek')">DeepSeek (V3)</button>
+          <button class="preset-btn" onclick="selectModel('openai')">OpenAI (GPT-4o-mini)</button>
+          <button class="preset-btn active" onclick="selectModel('deepseek')">DeepSeek (V3)</button>
           <button class="preset-btn" onclick="selectModel('deepseek-r1')">DeepSeek (R1)</button>
           <button class="preset-btn" onclick="selectModel('agnes')">Agnes AI 2.0</button>
           <button class="preset-btn" onclick="selectModel('agnes-fast')">Agnes 1.5 高并发</button>
@@ -202,7 +209,7 @@
       </div>
       <div class="row">
         <label>API地址</label>
-        <input type="text" id="ai_api_url" value="https://api.openai.com/v1/chat/completions" onchange="saveOne('ai_api_url')">
+        <input type="text" id="ai_api_url" value="https://api.deepseek.com/v1/chat/completions" onchange="saveOne('ai_api_url')">
       </div>
       <div class="row">
         <label>API Key</label>
@@ -210,7 +217,7 @@
       </div>
       <div class="row">
         <label>模型名</label>
-        <input type="text" id="ai_model" value="gpt-4o-mini" onchange="saveOne('ai_model')" style="flex:1">
+        <input type="text" id="ai_model" value="deepseek-chat" onchange="saveOne('ai_model')" style="flex:1">
       </div>
       <div class="row">
         <label>默认类型</label>
@@ -251,6 +258,10 @@
     </div>
   </div>
 
+  <div class="card full-width" id="adminPanel" style="display:none"><h3><span class="icon">&#128273;</span> &#31649;&#29702;&#21592;&#36134;&#21495;&#31649;&#29702;</h3><div class="row"><label>&#27880;&#20876;&#36992;&#35831;&#30721;</label><button class="btn btn-outline" onclick="showInviteCode()">&#26597;&#30475; / &#22797;&#21046;</button><span id="inviteCodeResult" class="tip-text"></span></div><div class="row"><label>&#30446;&#26631;&#25163;&#26426;&#21495;</label><input id="resetTargetPhone" placeholder="13800138000"><button class="btn btn-outline" onclick="generateResetCode()">&#29983;&#25104;&#19968;&#27425;&#24615;&#37325;&#32622;&#30721;</button></div><div id="resetCodeResult" class="tip-text"></div></div>
+
+  <div id="reminderBanner" class="reminder-banner"></div>
+
   <!-- 统计概览 -->
   <div class="card">
     <h3><span class="icon">📊</span> 统计概览</h3>
@@ -283,6 +294,7 @@ async function api(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(path, opts);
+  if (r.status === 401) { location.href = '/login.html'; return { ok:false, error:'unauthorized' }; }
   return r.json();
 }
 
@@ -359,7 +371,9 @@ async function saveOne(key) {
   const el = document.getElementById(key);
   if (!el) return;
   let val = el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value;
-  
+  if ((key === 'today_reminder' || key === 'pre_class_reminder') && el.checked && 'Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
   await api('POST', '/api/config', { [key]: val });
   
   if (key === 'grab_mode') updateGrabModeUI();
@@ -477,7 +491,10 @@ async function scanGroups() {
   try {
     const r = await api('POST', '/api/groups/scan');
     if (r.ok) {
-      toast(`扫描完成! 找到 ${r.total} 个群，新增 ${r.added} 个`);
+      const method = r.scan_method === 'windows_ocr' ? '\u672c\u673a OCR' : '\u5fae\u4fe1\u63a7\u4ef6';
+      toast(`\u626b\u63cf\u5b8c\u6210\uff08${method}\uff09! \u627e\u5230 ${r.total} \u4e2a\u7fa4\uff0c\u65b0\u589e ${r.added} \u4e2a`);
+      const tip = document.getElementById('scanTip');
+      if (r.tip && tip) tip.textContent = r.tip;
       refreshGroups();
     } else {
       toast('扫描失败: ' + (r.error || '未知错误'));
@@ -612,6 +629,62 @@ async function refreshStats() {
   loadStatus(stats.service_status);
 }
 
+
+
+async function loadCurrentUser() {
+  const r = await api('GET', '/api/auth/me');
+  if (r && r.user && r.user.is_admin) document.getElementById('adminPanel').style.display = '';
+}
+
+async function showInviteCode() {
+  const r = await api('GET', '/api/auth/admin/invite-code');
+  const out = document.getElementById('inviteCodeResult');
+  if (!r.ok) { out.textContent = r.error || '\u83b7\u53d6\u5931\u8d25'; return; }
+  out.textContent = r.invite_code;
+  try { await navigator.clipboard.writeText(r.invite_code); toast('\u9080\u8bf7\u7801\u5df2\u590d\u5236'); } catch(e) {}
+}
+
+async function generateResetCode() {
+  const phone = document.getElementById('resetTargetPhone').value.trim();
+  const out = document.getElementById('resetCodeResult');
+  if (!/^1[3-9]\d{9}$/.test(phone)) { out.textContent = '\u8bf7\u8f93\u5165\u6b63\u786e\u624b\u673a\u53f7'; return; }
+  const r = await api('POST', '/api/auth/admin/reset-code', { phone });
+  if (!r.ok) { out.textContent = r.error || '\u751f\u6210\u5931\u8d25'; return; }
+  out.textContent = '\u4e00\u6b21\u6027\u91cd\u7f6e\u7801\uff1a' + r.reset_code + '\uff0815 \u5206\u949f\u5185\u6709\u6548\uff09';
+  try { await navigator.clipboard.writeText(r.reset_code); toast('\u91cd\u7f6e\u7801\u5df2\u590d\u5236'); } catch(e) {}
+}
+
+// ==================== Obvious schedule reminders ====================
+async function refreshReminders() {
+  const box = document.getElementById('reminderBanner');
+  if (!box) return;
+  try {
+    const r = await api('GET', '/api/reminders/upcoming');
+    const items = (r && r.items) || [];
+    if (!items.length) { box.className = 'reminder-banner'; box.innerHTML = ''; return; }
+    const urgent = items.some(x => x.reminder_level === 'urgent');
+    box.className = 'reminder-banner show' + (urgent ? ' urgent' : '');
+    box.innerHTML = '<h3>' + (urgent ? '\u23f0 \u8bfe\u524d\u63d0\u9192\uff1a\u9a6c\u4e0a\u8981\u4e0a\u8bfe\uff01' : '\ud83d\udcc5 \u4eca\u65e5\u8bfe\u7a0b\u63d0\u9192') + '</h3><ul>' +
+      items.map(x => '<li>' + escHtml(x.display_time || x.start_time || '') + ' \u00b7 ' + escHtml(x.student_name || '\u672a\u547d\u540d\u5b66\u751f') + ' \u00b7 ' + escHtml(x.subject_type || '') + ' \u2014 ' + escHtml(x.reminder_reason || '') + '</li>').join('') +
+      '</ul>';
+    if (urgent && 'Notification' in window && Notification.permission === 'granted') {
+      const item = items.find(x => x.reminder_level === 'urgent');
+      const noticeKey = 'xm_course_notice_' + (item.id || '') + '_' + new Date().toISOString().slice(0,10);
+      if (!localStorage.getItem(noticeKey)) {
+        new Notification('\u8bfe\u524d\u63d0\u9192\uff1a\u9a6c\u4e0a\u8981\u4e0a\u8bfe', {
+          body: (item.display_time || item.start_time || '') + ' \u00b7 ' + (item.student_name || '\u672a\u547d\u540d\u5b66\u751f') + ' \u00b7 ' + (item.subject_type || ''),
+          tag: noticeKey,
+          requireInteraction: true
+        });
+        localStorage.setItem(noticeKey, '1');
+      }
+    }
+  } catch (e) {
+    console.warn('refreshReminders failed', e);
+  }
+}
+function escHtml(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 // ==================== AI 连接测试 ====================
 async function testAIConnection() {
   const key = document.getElementById('ai_api_key').value;
@@ -655,7 +728,8 @@ async function testReply() {
 }
 // ==================== 初始化 ====================
 loadConfig();
-setInterval(() => { refreshStats(); refreshGrabs(); refreshMonitorLog(); }, 5000);
+loadCurrentUser();
+setInterval(() => { refreshStats(); refreshGrabs(); refreshMonitorLog(); refreshReminders(); }, 5000);
 </script>
 </body>
 </html>

@@ -1,0 +1,15 @@
+.git
+.gitignore
+.agents
+.codex
+.env
+data.db
+*.db-wal
+*.db-shm
+__pycache__
+*.pyc
+venv
+lib
+server_output.txt
+@AutomationLog.txt
+*.log

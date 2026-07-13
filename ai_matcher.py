@@ -161,9 +161,9 @@ class OrderMatcher:
     def _ai_match(self, msg: str) -> dict:
         """AI 智能识别"""
         try:
-            api_url = self.get_cfg("ai_api_url") or "https://api.openai.com/v1/chat/completions"
+            api_url = self.get_cfg("ai_api_url") or "https://api.deepseek.com/v1/chat/completions"
             api_key = self.get_cfg("ai_api_key") or ""
-            model = self.get_cfg("ai_model") or "gpt-4o-mini"
+            model = self.get_cfg("ai_model") or "deepseek-chat"
             
             if not api_key:
                 print("[AI] API Key 未配置，跳过 AI 匹配")
