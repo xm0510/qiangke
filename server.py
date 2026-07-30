@@ -23,7 +23,9 @@ _load_local_env()
 
 def _ensure_registration_invite_code():
     code=os.environ.get("REGISTRATION_INVITE_CODE","").strip()
-    if code:return code
+    if code:
+        os.environ["REGISTRATION_INVITE_CODE"] = code
+        return code
     code=secrets.token_urlsafe(15)
     os.environ["REGISTRATION_INVITE_CODE"]=code
     try:
@@ -54,6 +56,19 @@ def _login_response(result):
     return resp
 
 db.init_db()
+
+def _apply_admin_recovery_password():
+    password = os.environ.get("ADMIN_RECOVERY_PASSWORD", "").strip()
+    if not password:
+        return
+    phone = os.environ.get("ADMIN_PHONE", "").strip()
+    applied = db.apply_admin_recovery_password(phone, password)
+    if applied:
+        print("[auth] administrator password recovered; remove ADMIN_RECOVERY_PASSWORD after login")
+    else:
+        print("[auth] administrator recovery value already applied")
+
+_apply_admin_recovery_password()
 
 # 全局监控实例
 _monitor_instance = None
@@ -131,10 +146,10 @@ def api_auth_register():
     data=request.get_json(force=True)
     try:
         phone=_normalize_phone(data.get("phone",""))
-        expected=os.environ.get("REGISTRATION_INVITE_CODE","")
+        expected=os.environ.get("REGISTRATION_INVITE_CODE","").strip()
         supplied=str(data.get("invite_code","")).strip()
         if not expected: raise RuntimeError("REGISTRATION_INVITE_CODE is not configured")
-        if not secrets.compare_digest(expected,supplied): raise ValueError("\u9080\u8bf7\u7801\u9519\u8bef")
+        if not secrets.compare_digest(expected,supplied): raise ValueError("\u9080\u8bf7\u7801\u9519\u8bef\uff0c\u8bf7\u5411\u7ba1\u7406\u5458\u83b7\u53d6\u6700\u65b0\u9080\u8bf7\u7801")
         result=db.register_or_set_password(phone,data.get("password",""))
         return _login_response(result)
     except Exception as e:

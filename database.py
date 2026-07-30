@@ -162,6 +162,40 @@ def _hash_password(password, salt_hex=None):
     digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1, dklen=32)
     return salt.hex(), digest.hex()
 
+def apply_admin_recovery_password(phone, password):
+    """Reset the configured administrator password once per distinct recovery value."""
+    phone = str(phone or "").strip()
+    if len(phone) != 11 or not phone.isdigit():
+        raise ValueError("\u0041\u0044\u004d\u0049\u004e\u005f\u0050\u0048\u004f\u004e\u0045 \u5fc5\u987b\u662f 11 \u4f4d\u624b\u673a\u53f7")
+    fingerprint = hashlib.sha256((phone + "\0" + str(password)).encode("utf-8")).hexdigest()
+    recovery_key = "admin_recovery_password_fingerprint"
+    with db_cursor() as conn:
+        previous = conn.execute("SELECT value FROM config WHERE key=?", (recovery_key,)).fetchone()
+        if previous and secrets.compare_digest(previous["value"], fingerprint):
+            return False
+        salt, digest = _hash_password(password)
+        row = conn.execute("SELECT id FROM users WHERE phone=?", (phone,)).fetchone()
+        if row:
+            user_id = row["id"]
+            conn.execute(
+                "UPDATE users SET password_hash=?,password_salt=?,is_admin=1 WHERE id=?",
+                (digest, salt, user_id),
+            )
+        else:
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO users(phone,nickname,password_hash,password_salt,is_admin) VALUES (?,?,?,?,1)",
+                (phone, "\u7ba1\u7406\u5458" + phone[-4:], digest, salt),
+            )
+            user_id = cur.lastrowid
+        conn.execute("UPDATE users SET is_admin=CASE WHEN id=? THEN 1 ELSE 0 END", (user_id,))
+        conn.execute("DELETE FROM auth_tokens WHERE user_id=?", (user_id,))
+        conn.execute(
+            "INSERT OR REPLACE INTO config(key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
+            (recovery_key, fingerprint),
+        )
+        return True
+
 def _session_for_user(conn, user_id):
     token = secrets.token_urlsafe(32)
     conn.execute("INSERT INTO auth_tokens (token,user_id,expires_at) VALUES (?,?,datetime('now','+30 days'))", (token,user_id))
