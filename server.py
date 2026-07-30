@@ -47,6 +47,12 @@ def _normalize_phone(phone):
     if not re.fullmatch(r"1[3-9]\d{9}", phone): raise ValueError("\u8bf7\u8f93\u5165\u6b63\u786e\u7684\u4e2d\u56fd\u5927\u9646\u624b\u673a\u53f7")
     return phone
 
+_RESET_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+def _normalize_reset_code(code):
+    cleaned = "".join(ch for ch in str(code or "").upper() if ch in _RESET_CODE_ALPHABET)
+    return cleaned[:10]
+
 def _reset_code_hash(phone,code):
     return hashlib.sha256(f"{phone}:{code}".encode("utf-8")).hexdigest()
 
@@ -170,7 +176,7 @@ def api_auth_admin_reset_code():
     data=request.get_json(force=True)
     try:
         phone=_normalize_phone(data.get("phone",""))
-        code=''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(10))
+        code=''.join(secrets.choice(_RESET_CODE_ALPHABET) for _ in range(10))
         db.save_password_reset_code(phone,_reset_code_hash(phone,code),user['id'],15)
         return jsonify({"ok":True,"reset_code":code,"expires_in":900})
     except Exception as e:
@@ -181,7 +187,9 @@ def api_auth_reset_password():
     data=request.get_json(force=True)
     try:
         phone=_normalize_phone(data.get("phone",""))
-        code=str(data.get("reset_code","")).strip()
+        code=_normalize_reset_code(data.get("reset_code",""))
+        if len(code) != 10:
+            raise ValueError("\u91cd\u7f6e\u7801\u683c\u5f0f\u9519\u8bef\uff0c\u8bf7\u7c98\u8d34\u7ba1\u7406\u5458\u751f\u6210\u7684 10 \u4f4d\u91cd\u7f6e\u7801")
         db.reset_password_with_code(phone,_reset_code_hash(phone,code),data.get("password",""))
         result=db.login_with_password(phone,data.get("password",""))
         return _login_response(result)
