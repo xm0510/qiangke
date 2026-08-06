@@ -14,7 +14,7 @@ class AuthRouteTests(unittest.TestCase):
             "DB_PATH", "ADMIN_PHONE", "REGISTRATION_INVITE_CODE", "ADMIN_RECOVERY_PASSWORD"
         )}
         os.environ["DB_PATH"] = str(Path(self.tempdir.name) / "data.db")
-        os.environ["ADMIN_PHONE"] = "15056587110"
+        os.environ["ADMIN_PHONE"] = '"15056587110"'
         os.environ["REGISTRATION_INVITE_CODE"] = "InviteCode2026"
         os.environ.pop("ADMIN_RECOVERY_PASSWORD", None)
         sys.modules.pop("server", None)

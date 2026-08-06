@@ -68,7 +68,7 @@ def _apply_admin_recovery_password():
     password = os.environ.get("ADMIN_RECOVERY_PASSWORD", "").strip()
     if not password:
         return
-    phone = os.environ.get("ADMIN_PHONE", "").strip()
+    phone = db.get_configured_admin_phone()
     applied = db.apply_admin_recovery_password(phone, password)
     if applied:
         print("[auth] administrator password recovered; remove ADMIN_RECOVERY_PASSWORD after login")

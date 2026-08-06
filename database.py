@@ -9,8 +9,10 @@ DB_PATH = os.path.abspath(os.environ.get(
 ))
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
+DEFAULT_ADMIN_PHONE = "15056587110"
+
 def _configured_admin_phone():
-    phone = os.environ.get("ADMIN_PHONE", "").strip()
+    phone = os.environ.get("ADMIN_PHONE", "").strip().strip('"').strip("'")
     if not phone:
         try:
             env_path = os.path.join(os.path.dirname(DB_PATH), ".env")
@@ -21,7 +23,10 @@ def _configured_admin_phone():
                         break
         except OSError:
             pass
-    return phone if len(phone) == 11 and phone.isdigit() else ""
+    return phone if len(phone) == 11 and phone.isdigit() else DEFAULT_ADMIN_PHONE
+
+def get_configured_admin_phone():
+    return _configured_admin_phone()
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -93,10 +98,7 @@ def init_db():
         try: c.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
         except: pass
         admin_phone = _configured_admin_phone()
-        if admin_phone and c.execute("SELECT 1 FROM users WHERE phone=?", (admin_phone,)).fetchone():
-            c.execute("UPDATE users SET is_admin=CASE WHEN phone=? THEN 1 ELSE 0 END", (admin_phone,))
-        else:
-            c.execute("UPDATE users SET is_admin=1 WHERE id=(SELECT MIN(id) FROM users) AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin=1)")
+        c.execute("UPDATE users SET is_admin=CASE WHEN phone=? THEN 1 ELSE 0 END", (admin_phone,))
         # Migrations for per-user data isolation. Existing unowned rows stay
         # user_id=NULL and are never returned through authenticated APIs.
         try: c.execute("ALTER TABLE monitored_groups ADD COLUMN user_id INTEGER")
@@ -233,6 +235,8 @@ def login_with_password(phone,password):
         if not row or not row['password_hash']: raise ValueError("\u8d26\u53f7\u672a\u6ce8\u518c\u6216\u5c1a\u672a\u8bbe\u7f6e\u5bc6\u7801")
         _,digest=_hash_password(password,row['password_salt'])
         if not secrets.compare_digest(row['password_hash'],digest): raise ValueError("\u624b\u673a\u53f7\u6216\u5bc6\u7801\u9519\u8bef")
+        admin_phone=_configured_admin_phone()
+        conn.execute("UPDATE users SET is_admin=CASE WHEN phone=? THEN 1 ELSE 0 END",(admin_phone,))
         conn.execute("UPDATE users SET last_login_at=CURRENT_TIMESTAMP WHERE id=?",(row['id'],))
         return _session_for_user(conn,row['id'])
 

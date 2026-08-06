@@ -46,6 +46,18 @@ class AdminRecoveryTests(unittest.TestCase):
         result = self.db.login_with_password("15056587110", "FreshPass789")
         self.assertEqual(result["user"]["is_admin"], 1)
 
+    def test_login_repairs_the_single_configured_admin(self):
+        self.db.register_or_set_password("15056587110", "AdminPass123")
+        self.db.register_or_set_password("13900000000", "UserPass123")
+        with self.db.db_cursor() as conn:
+            conn.execute("UPDATE users SET is_admin=CASE WHEN phone=? THEN 1 ELSE 0 END", ("13900000000",))
+
+        result = self.db.login_with_password("15056587110", "AdminPass123")
+        self.assertEqual(result["user"]["is_admin"], 1)
+        with self.db.db_cursor(commit=False) as conn:
+            admins = conn.execute("SELECT phone FROM users WHERE is_admin=1").fetchall()
+        self.assertEqual([row["phone"] for row in admins], ["15056587110"])
+
 
 if __name__ == "__main__":
     unittest.main()
