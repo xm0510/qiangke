@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>微信抢单系统 - 配置面板</title>
+<title>微信自动化 · 巷陌</title>
 <style>
   :root { --bg:#f0f2ff; --card:#fff; --text:#1a1a2e; --muted:#6b7280; --accent:#7c3aed; --accent2:#a855f7; --danger:#ef4444; --warn:#f59e0b; --border:#e5e7eb; --hover:#f5f3ff; --radius:12px; --shadow:0 1px 3px rgba(0,0,0,.06); }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -29,7 +29,7 @@
   .row select,.row input[type=text],.row input[type=password],.row input[type=number] { flex:1; min-width:120px; padding:7px 10px; border:1px solid var(--border); border-radius:6px; font-size:13px; outline:none; }
   .row select:focus,.row input:focus { border-color:var(--accent); }
   .toggle { position:relative; display:inline-block; width:44px; height:24px; flex-shrink:0; }
-  .toggle input { display:none; }
+  .toggle input { position:absolute; opacity:0; width:1px; height:1px; }
   .toggle .slider { position:absolute; cursor:pointer; top:0;left:0;right:0;bottom:0; background:#ccc; border-radius:12px; transition:.3s; }
   .toggle .slider:before { content:""; position:absolute; height:18px; width:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.3s; }
   .toggle input:checked+.slider { background:var(--accent); }
@@ -84,44 +84,31 @@
   .type-chip{padding:8px 16px!important;margin:4px!important;border:1.5px solid #ddd!important;border-radius:999px!important;background:#fff!important;cursor:pointer!important;font-size:13px!important;font-family:inherit!important;transition:.18s!important;box-shadow:0 2px 8px rgba(15,23,42,.04)!important}
   .type-chip:hover{background:#f5f3ff!important;border-color:#c4b5fd!important;transform:translateY(-1px)}
   .type-chip.active{border-color:#7c3aed!important;background:linear-gradient(135deg,#7c3aed,#a855f7)!important;color:#fff!important;font-weight:700!important;box-shadow:0 8px 18px rgba(124,58,237,.24)!important}
+
+  .toggle{width:44px;height:44px;display:inline-flex;align-items:center}.toggle input{position:absolute!important;opacity:0!important;width:1px!important;height:1px!important;overflow:hidden!important;display:block!important}.toggle .slider{top:10px;bottom:10px}.toggle input:focus-visible+.slider{outline:3px solid rgba(124,58,237,.35);outline-offset:3px}.btn,.tab-nav a,.row select,.row input{min-height:44px}.save-status{border:1px solid rgba(255,255,255,.45)!important}.save-status[data-state="saving"]{color:#fef3c7!important}.save-status[data-state="failed"]{background:#fff!important;color:#b42318!important}.assistant-card{background:linear-gradient(135deg,#fff,#f7f5ff);border:1px solid #ddd6fe}.assistant-summary{color:var(--muted);font-size:13px;line-height:1.75;margin-bottom:12px}.status-chips{display:flex;gap:8px;flex-wrap:wrap}.status-chip{padding:7px 10px;border-radius:999px;background:#f2f4f7;color:#475467;font-size:12px}.status-chip.ok{background:#ecfdf3;color:#027a48}.status-chip.bad{background:#fff1f0;color:#b42318}.tab-nav{position:sticky;top:0;z-index:10;background:rgba(240,242,255,.96);padding:8px 0}.account-badge{font-size:12px;color:#fff;opacity:.9}@media(max-width:680px){body{padding:10px}.tab-nav{display:flex;overflow-x:auto;white-space:nowrap}.header{align-items:flex-start}.header .btn-group{width:100%;display:grid;grid-template-columns:1fr 1fr}.header .btn{width:100%}.grid{gap:10px}.card{padding:14px}.row{align-items:flex-start}.row>label:first-child{width:100%;min-width:0}.save-status{grid-column:1/-1}}
 </style>
 </head>
 <body>
 
-<div class="tab-nav">
-  <a href="/" class="active">配置面板</a>
-  <a href="/schedule.html">课表管理</a>
-  <a href="/feedback.html">&#35838;&#31243;&#21453;&#39304;</a>
-</div>
+<div class="tab-nav" aria-label="主导航"><a href="/">介绍</a><a href="/schedule">课表</a><a href="/feedback">课程反馈</a><a href="/automation" class="active">微信自动化</a><a href="/admin" id="adminNav" style="display:none">管理员</a></div>
 
 <div class="header">
   <h1>
-    <span>微信抢单系统</span>
+    <span>巷陌 · 微信自动化</span>
     <span class="status-dot stopped" id="statusDot" title="服务状态"></span>
-    <span style="font-size:12px;color:var(--muted)" id="statusLabel">已停止</span>
+    <span style="font-size:12px;color:#fff" id="statusLabel">本地助手离线</span><span class="account-badge" id="accountBadge"></span>
   </h1>
-  <div class="btn-group" style="gap:8px">
+  <div class="btn-group" style="gap:8px"><button class="btn save-status" id="saveStatus" data-state="saved" type="button" onclick="retrySave()" aria-live="polite">已保存</button>
     <button class="btn btn-green" onclick="controlService('start')" id="btnStart">开始抢单</button>
     <button class="btn btn-orange" onclick="controlService('pause')" id="btnPause">暂停</button>
-    <button class="btn btn-outline" onclick="testReply()">测试回复"1"</button>
-    <button class="btn btn-outline" onclick="location.href='/schedule.html'">打开课表</button>
+    <button class="btn btn-outline" id="btnTestReply" onclick="testReply()">测试回复"1"</button>
+    <button class="btn btn-outline" onclick="location.href='/schedule'">打开课表</button>
   </div>
 </div>
 
 <div class="grid">
+  <section class="card full-width assistant-card" id="localAssistantCard"><h3><span class="icon">&#128421;</span> 云端账号 + Windows 本地助手</h3><p class="assistant-summary">Railway 负责账号、课表和配置数据；微信群扫描、窗口恢复、本机 OCR 与自动回复无法由云端网页直接完成，必须由 Windows 本地助手连接微信。</p><div class="status-chips"><span class="status-chip bad" id="assistantStatus">本地助手：离线</span><span class="status-chip bad" id="wechatStatus">微信：未连接</span><span class="status-chip bad" id="ocrStatus">OCR：不可用</span><span class="status-chip" id="heartbeatStatus">最近心跳：暂无</span></div><div style="margin-top:12px"><button class="btn btn-outline" type="button" disabled title="本地助手安装包尚未发布">下载本地助手（暂未提供）</button></div></section>
 
-  <div class="card full-width" id="adminPanel" style="display:none">
-    <h3><span class="icon">&#128273;</span> &#36134;&#21495;&#19982;&#31649;&#29702;&#21592;</h3>
-    <div class="row"><label>&#24403;&#21069;&#36134;&#21495;</label><strong id="currentAccountStatus">&#27491;&#22312;&#26816;&#26597;&#26435;&#38480;...</strong></div>
-    <div id="adminOnlyControls" style="display:none">
-      <div class="row"><label>&#27880;&#20876;&#36992;&#35831;&#30721;</label><button class="btn btn-outline" onclick="showInviteCode()">&#26597;&#30475; / &#22797;&#21046;</button><button class="btn btn-outline" onclick="rotateInviteCode()">&#29983;&#25104;&#26032;&#36992;&#35831;&#30721;</button><span id="inviteCodeResult" class="tip-text"></span></div>
-      <div class="row"><label>&#30446;&#26631;&#25163;&#26426;&#21495;</label><input id="resetTargetPhone" placeholder="13800138000"><button class="btn btn-outline" onclick="generateResetCode()">&#29983;&#25104;&#37325;&#32622;&#38142;&#25509;</button></div>
-      <div id="resetCodeResult" class="tip-text"></div>
-    </div>
-    <div id="nonAdminNotice" class="tip-text" style="display:none;color:#dc2626;margin-left:0">&#24403;&#21069;&#36134;&#21495;&#19981;&#26159;&#31649;&#29702;&#21592;&#65292;&#35831;&#36864;&#20986;&#21518;&#20351;&#29992;&#31649;&#29702;&#21592;&#25163;&#26426;&#21495;&#30331;&#24405;&#12290;</div>
-  </div>
-
-  <!-- 基础设置 -->
   <div class="card">
     <h3><span class="icon">⚙</span> 基础设置</h3>
     <div class="row">
@@ -308,9 +295,13 @@ async function api(method, path, body) {
 }
 
 // ==================== 加载配置 ====================
+let savedConfig = {};
+let pendingSave = null;
+let localAssistantOnline = false;
 async function loadConfig() {
   const cfg = await api('GET', '/api/config');
-  if (!cfg) return;
+  if (!cfg || cfg.ok === false) return;
+  savedConfig = { ...cfg };
   Object.entries(cfg).forEach(([k, v]) => {
     const el = document.getElementById(k);
     if (!el) return;
@@ -376,22 +367,18 @@ function restoreModelPreset(url, model) {
 }
 
 // ==================== 保存配置 ====================
+function controlValue(el){return el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value}
+function applyControlValue(el,value){if(el.type==='checkbox')el.checked=String(value)==='true';else el.value=value==null?'':value}
+function setSaveStatus(state,text){const el=document.getElementById('saveStatus');if(!el)return;el.dataset.state=state;el.textContent=text;el.title=state==='failed'?'\u70b9\u51fb\u91cd\u8bd5\u4e0a\u4e00\u6b21\u4fdd\u5b58':''}
+function afterConfigChange(key,el){if(key==='grab_mode')updateGrabModeUI();if(key==='ai_enabled')updateAIUI();if(key==='monitor_mode')onMonitorModeChange();if(key==='conflict_detection')document.getElementById('conflictActionRow').style.display=el.checked?'':'none';if(key==='recurring_enabled')document.getElementById('recurWeeksRow').style.display=el.checked?'':'none';if(key==='pre_class_reminder')document.getElementById('preClassRow').style.display=el.checked?'':'none'}
 async function saveOne(key) {
-  const el = document.getElementById(key);
-  if (!el) return;
-  let val = el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value;
-  if ((key === 'today_reminder' || key === 'pre_class_reminder') && el.checked && 'Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
-  }
-  await api('POST', '/api/config', { [key]: val });
-  
-  if (key === 'grab_mode') updateGrabModeUI();
-  if (key === 'ai_enabled') updateAIUI();
-  if (key === 'monitor_mode') onMonitorModeChange();
-  if (key === 'conflict_detection') { document.getElementById('conflictActionRow').style.display = el.checked ? '' : 'none'; }
-  if (key === 'recurring_enabled') { document.getElementById('recurWeeksRow').style.display = el.checked ? '' : 'none'; }
-  if (key === 'pre_class_reminder') { document.getElementById('preClassRow').style.display = el.checked ? '' : 'none'; }
+  const el=document.getElementById(key);if(!el)return;
+  const val=controlValue(el),previous=Object.prototype.hasOwnProperty.call(savedConfig,key)?savedConfig[key]:val;
+  pendingSave={key,value:val,previous};setSaveStatus('saving','\u4fdd\u5b58\u4e2d\u2026');
+  if((key==='today_reminder'||key==='pre_class_reminder')&&el.checked&&'Notification'in window&&Notification.permission==='default')Notification.requestPermission();
+  try{const result=await api('POST','/api/config',{[key]:val});if(!result||result.ok!==true)throw new Error((result&&result.error)||'\u4fdd\u5b58\u5931\u8d25');savedConfig[key]=val;pendingSave=null;setSaveStatus('saved','\u5df2\u4fdd\u5b58');afterConfigChange(key,el)}catch(error){applyControlValue(el,previous);pendingSave={key,value:val,previous};afterConfigChange(key,el);setSaveStatus('failed','\u4fdd\u5b58\u5931\u8d25\uff0c\u70b9\u51fb\u91cd\u8bd5')}
 }
+async function retrySave(){if(!pendingSave)return;const retry={...pendingSave},el=document.getElementById(retry.key);if(!el)return;applyControlValue(el,retry.value);await saveOne(retry.key)}
 
 function updateGrabModeUI() {
   var ts = document.getElementById('typeSelector');
@@ -548,50 +535,23 @@ async function removeGroup(id) {
 
 // ==================== 服务控制（修复#1: 真正启动监控） ====================
 async function controlService(action) {
+  if (!localAssistantOnline) { toast('\u8bf7\u5148\u5b89\u88c5\u5e76\u8fde\u63a5 Windows \u672c\u5730\u52a9\u624b'); return; }
   const actions = {
-    start: { api: '/api/service/start', label: '运行中', cls: 'running', btnText: '正在启动...' },
-    pause: { api: '/api/service/pause', label: '已暂停', cls: 'paused', btnText: '正在暂停...' },
+    start: { api: '/api/service/start', label: '\u8fd0\u884c\u4e2d', cls: 'running', btnText: '\u6b63\u5728\u542f\u52a8...' },
+    pause: { api: '/api/service/pause', label: '\u5df2\u6682\u505c', cls: 'paused', btnText: '\u6b63\u5728\u6682\u505c...' },
   };
-  const a = actions[action];
-  if (!a) return;
-  
-  const btn = document.getElementById(action === 'start' ? 'btnStart' : 'btnPause');
-  btn.disabled = true;
-  const origText = btn.textContent;
-  btn.textContent = a.btnText;
-  
-  await api('POST', a.api);
-  loadStatus(a.label, a.cls);
-  
-  setTimeout(() => {
-    btn.disabled = false;
-    btn.textContent = origText;
-  }, 2000);
-  
-  if (action === 'start') {
-    toast('✅ 已开始抢单! 监控已启动，将自动回复"1"');
-  } else {
-    toast('⏸ 已暂停抢单');
-  }
+  const a=actions[action];if(!a)return;const btn=document.getElementById(action==='start'?'btnStart':'btnPause');btn.disabled=true;const origText=btn.textContent;btn.textContent=a.btnText;
+  const result=await api('POST',a.api);if(!result||result.ok!==true){btn.disabled=false;btn.textContent=origText;toast('\u64cd\u4f5c\u5931\u8d25\uff1a'+((result&&result.error)||'\u672a\u77e5\u9519\u8bef'));return}loadStatus(a.label,a.cls);
+  setTimeout(()=>{btn.disabled=false;btn.textContent=origText},2000);
+  toast(action==='start'?'\u2705 \u5df2\u5f00\u59cb\u62a2\u5355\uff0c\u672c\u5730\u52a9\u624b\u6b63\u5728\u76d1\u63a7':'\u23f8 \u5df2\u6682\u505c\u62a2\u5355');
 }
 
 function loadStatus(status, cls) {
-  const dot = document.getElementById('statusDot');
-  const label = document.getElementById('statusLabel');
-  if (status === 'running' || cls === 'running') {
-    dot.className = 'status-dot running';
-    label.textContent = '运行中';
-  } else if (status === 'paused' || cls === 'paused') {
-    dot.className = 'status-dot paused';
-    label.textContent = '已暂停';
-  } else {
-    dot.className = 'status-dot stopped';
-    label.textContent = '已停止';
-  }
+  const dot=document.getElementById('statusDot'),label=document.getElementById('statusLabel');
+  if(!localAssistantOnline){dot.className='status-dot stopped';label.textContent='\u672c\u5730\u52a9\u624b\u79bb\u7ebf';return}
+  if(status==='running'||cls==='running'){dot.className='status-dot running';label.textContent='\u8fd0\u884c\u4e2d'}else if(status==='paused'||cls==='paused'){dot.className='status-dot paused';label.textContent='\u5df2\u6682\u505c'}else{dot.className='status-dot stopped';label.textContent='\u5df2\u505c\u6b62'}
 }
 
-
-// ==================== 监控日志 ====================
 async function refreshMonitorLog() {
   try {
     const r = await api('GET', '/api/monitor-log?' + Date.now());
@@ -641,44 +601,13 @@ async function refreshStats() {
 
 
 async function loadCurrentUser() {
-  const r = await api('GET', '/api/auth/me');
-  if (!r || !r.user) return;
-  const isAdmin = Number(r.user.is_admin) === 1;
-  document.getElementById('adminPanel').style.display = '';
-  document.getElementById('currentAccountStatus').textContent = (r.user.phone || r.user.nickname || '') + (isAdmin ? ' \u00b7 \u7ba1\u7406\u5458' : ' \u00b7 \u666e\u901a\u7528\u6237');
-  document.getElementById('adminOnlyControls').style.display = isAdmin ? '' : 'none';
-  document.getElementById('nonAdminNotice').style.display = isAdmin ? 'none' : '';
+  const r=await api('GET','/api/auth/me');if(!r||!r.user)return;
+  const isAdmin=Number(r.user.is_admin)===1;document.getElementById('accountBadge').textContent=(r.user.phone||r.user.nickname||'')+(isAdmin?' \u00b7 \u7ba1\u7406\u5458':'');document.getElementById('adminNav').style.display=isAdmin?'':'none';
 }
+function setCapability(id,label,ok){const el=document.getElementById(id);if(!el)return;el.textContent=label;el.classList.toggle('ok',!!ok);el.classList.toggle('bad',!ok)}
+async function loadLocalAssistantStatus(){const r=await api('GET','/api/local-assistant/status');localAssistantOnline=!!(r&&r.ok&&r.assistant_online);setCapability('assistantStatus','\u672c\u5730\u52a9\u624b\uff1a'+(localAssistantOnline?'\u5728\u7ebf':'\u79bb\u7ebf'),localAssistantOnline);setCapability('wechatStatus','\u5fae\u4fe1\uff1a'+(r&&r.wechat_connected?'\u5df2\u8fde\u63a5':'\u672a\u8fde\u63a5'),!!(r&&r.wechat_connected));setCapability('ocrStatus','OCR\uff1a'+(r&&r.ocr_available?'\u53ef\u7528':'\u4e0d\u53ef\u7528'),!!(r&&r.ocr_available));document.getElementById('heartbeatStatus').textContent='\u6700\u8fd1\u5fc3\u8df3\uff1a'+(r&&r.last_heartbeat?r.last_heartbeat:'\u6682\u65e0');document.getElementById('btnStart').disabled=!localAssistantOnline;document.getElementById('btnPause').disabled=!localAssistantOnline;document.getElementById('btnTestReply').disabled=!localAssistantOnline;document.getElementById('btnStart').title=localAssistantOnline?'':'\u8bf7\u5148\u5b89\u88c5\u5e76\u8fde\u63a5 Windows \u672c\u5730\u52a9\u624b';document.getElementById('btnTestReply').title=localAssistantOnline?'':'\u8bf7\u5148\u5b89\u88c5\u5e76\u8fde\u63a5 Windows \u672c\u5730\u52a9\u624b';loadStatus(localAssistantOnline?'stopped':'offline')}
+function setupToggleLabels(){document.querySelectorAll('label.toggle input').forEach(function(input){if(input.getAttribute('aria-label'))return;var row=input.closest('.row'),label=row&&row.querySelector(':scope > label:first-child');input.setAttribute('aria-label',(label&&label.textContent.trim())||input.id)})}
 
-async function showInviteCode() {
-  const r = await api('GET', '/api/auth/admin/invite-code');
-  const out = document.getElementById('inviteCodeResult');
-  if (!r.ok) { out.textContent = r.error || '\u83b7\u53d6\u5931\u8d25'; return; }
-  out.textContent = r.invite_code;
-  try { await navigator.clipboard.writeText(r.invite_code); toast('\u9080\u8bf7\u7801\u5df2\u590d\u5236'); } catch(e) {}
-}
-
-async function rotateInviteCode() {
-  if (!confirm('\u751f\u6210\u65b0\u9080\u8bf7\u7801\u540e\uff0c\u65e7\u9080\u8bf7\u7801\u4f1a\u7acb\u5373\u5931\u6548\u3002\u7ee7\u7eed\u5417\uff1f')) return;
-  const r = await api('POST', '/api/auth/admin/invite-code', {});
-  const out = document.getElementById('inviteCodeResult');
-  if (!r.ok) { out.textContent = r.error || '\u751f\u6210\u5931\u8d25'; return; }
-  out.textContent = r.invite_code;
-  try { await navigator.clipboard.writeText(r.invite_code); toast('\u65b0\u9080\u8bf7\u7801\u5df2\u590d\u5236'); } catch(e) {}
-}
-
-async function generateResetCode() {
-  const phone = document.getElementById('resetTargetPhone').value.trim();
-  const out = document.getElementById('resetCodeResult');
-  if (!/^1[3-9]\d{9}$/.test(phone)) { out.textContent = '\u8bf7\u8f93\u5165\u6b63\u786e\u624b\u673a\u53f7'; return; }
-  const r = await api('POST', '/api/auth/admin/reset-code', { phone });
-  if (!r.ok) { out.textContent = r.error || '\u751f\u6210\u5931\u8d25'; return; }
-  const resetUrl = location.origin + r.reset_path;
-  out.innerHTML = '<a href="' + r.reset_path + '" target="_blank">\u6253\u5f00\u91cd\u7f6e\u94fe\u63a5</a>\uff0815 \u5206\u949f\u5185\u6709\u6548\uff09';
-  try { await navigator.clipboard.writeText(resetUrl); toast('\u91cd\u7f6e\u94fe\u63a5\u5df2\u590d\u5236'); } catch(e) {}
-}
-
-// ==================== Obvious schedule reminders ====================
 async function refreshReminders() {
   const box = document.getElementById('reminderBanner');
   if (!box) return;
@@ -737,23 +666,14 @@ function toast(msg) {
 
 // ==================== 测试回复 ====================
 async function testReply() {
-  const text = document.getElementById('reply_content').value || '1';
-  toast('正在测试发送: ' + text + ' ...请先打开目标微信群聊天窗口');
-  const r = await api('POST', '/api/test-reply', { text });
-  if (r.ok) {
-    toast('✅ ' + r.msg);
-  } else {
-    const steps = (r.steps || []).join('\n');
-    const detail = r.msg + '\n\n诊断步骤:\n' + steps;
-    toast('❌ ' + r.msg);
-    console.error('发送失败诊断:', r);
-    alert('❌ 发送失败\n\n' + detail);
-  }
+  if(!localAssistantOnline){toast('\u8bf7\u5148\u5b89\u88c5\u5e76\u8fde\u63a5 Windows \u672c\u5730\u52a9\u624b');return}
+  const text=document.getElementById('reply_content').value||'1';toast('\u6b63\u5728\u6d4b\u8bd5\u53d1\u9001: '+text+' ...\u8bf7\u5148\u6253\u5f00\u76ee\u6807\u5fae\u4fe1\u7fa4\u804a\u5929\u7a97\u53e3');const r=await api('POST','/api/test-reply',{text});if(r.ok){toast('\u2705 '+r.msg)}else{const steps=(r.steps||[]).join('\n'),detail=r.msg+'\n\n\u8bca\u65ad\u6b65\u9aa4:\n'+steps;toast('\u274c '+r.msg);console.error('\u53d1\u9001\u5931\u8d25\u8bca\u65ad:',r);alert('\u274c \u53d1\u9001\u5931\u8d25\n\n'+detail)}
 }
-// ==================== 初始化 ====================
+setupToggleLabels();
 loadConfig();
 loadCurrentUser();
-setInterval(() => { refreshStats(); refreshGrabs(); refreshMonitorLog(); refreshReminders(); }, 5000);
+loadLocalAssistantStatus();
+setInterval(() => { refreshStats(); refreshGrabs(); refreshMonitorLog(); refreshReminders(); loadLocalAssistantStatus(); }, 30000);
 </script>
 </body>
 </html>

@@ -118,24 +118,31 @@ def require_user():
 
 # ==================== 页面路由 ====================
 @app.route("/")
-def index():
-    return send_from_directory(os.path.join(BASE_DIR, "web"), "index.html")
-
-@app.route("/schedule.html")
-def schedule_page():
-    return send_from_directory(os.path.join(BASE_DIR, "web"), "schedule.html")
-
 @app.route("/landing.html")
 def landing_page():
     return send_from_directory(os.path.join(BASE_DIR, "web"), "landing.html")
 
-@app.route("/login.html")
-def login_page():
-    return send_from_directory(os.path.join(BASE_DIR, "web"), "login.html")
+@app.route("/schedule")
+@app.route("/schedule.html")
+def schedule_page():
+    return send_from_directory(os.path.join(BASE_DIR, "web"), "schedule.html")
 
+@app.route("/feedback")
 @app.route("/feedback.html")
 def feedback_page():
     return send_from_directory(os.path.join(BASE_DIR, "web"), "feedback.html")
+
+@app.route("/automation")
+def automation_page():
+    return send_from_directory(os.path.join(BASE_DIR, "web"), "index.html")
+
+@app.route("/admin")
+def admin_page():
+    return send_from_directory(os.path.join(BASE_DIR, "web"), "admin.html")
+
+@app.route("/login.html")
+def login_page():
+    return send_from_directory(os.path.join(BASE_DIR, "web"), "login.html")
 
 # ==================== ?? API ====================
 @app.route("/api/auth/login", methods=["POST"])
@@ -221,6 +228,16 @@ def api_auth_logout():
     return resp
 
 # ==================== 配置 API ====================
+@app.route("/api/local-assistant/status", methods=["GET"])
+def api_local_assistant_status():
+    user, err = require_user()
+    if err: return err
+    return jsonify({"ok": True, "architecture": "cloud-plus-windows-helper",
+        "assistant_online": False, "wechat_connected": False,
+        "ocr_available": False, "last_heartbeat": None,
+        "download_available": False,
+        "message": "Railway 负责云端账号和数据；微信扫描、OCR 与自动回复需要 Windows 本地助手。"})
+
 @app.route("/api/config", methods=["GET"])
 def api_get_config():
     user, err = require_user()
@@ -325,6 +342,57 @@ def api_get_grabs():
     offset = request.args.get("offset", 0, type=int)
     return jsonify(db.get_grab_records(limit, offset, user['id']))
 
+def _validated_schedule_payload(raw, existing=None):
+    data = dict(existing or {})
+    data.update(raw or {})
+    name = str(data.get("student_name") or "").strip()
+    if not name: raise ValueError("请填写学生姓名")
+    start_time = str(data.get("start_time") or "")
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", start_time):
+        raise ValueError("请选择有效的上课时间")
+    try: duration = int(data.get("duration_min"))
+    except (TypeError, ValueError): raise ValueError("时长必须为整数")
+    if not 10 <= duration <= 480: raise ValueError("时长必须在 10 到 480 分钟之间")
+    try: price = float(data.get("price_per_session") or 0)
+    except (TypeError, ValueError): raise ValueError("课时费格式不正确")
+    if price < 0: raise ValueError("课时费不能为负数")
+    status = str(data.get("status") or "pending")
+    if status not in {"pending", "confirmed", "completed", "cancelled"}: raise ValueError("课程状态无效")
+    recurring = str(data.get("is_recurring", 0)).lower() in {"1", "true"}
+    try: day = int(data.get("day_of_week") or 0)
+    except (TypeError, ValueError): day = 0
+    if day not in range(1, 8): raise ValueError("请选择有效的星期")
+    schedule_date = str(data.get("schedule_date") or "").strip()
+    recur_end = str(data.get("recur_end_date") or "").strip()
+    recur_count = data.get("recur_until_count")
+    if recurring:
+        if recur_end:
+            try: datetime.strptime(recur_end, "%Y-%m-%d")
+            except ValueError: raise ValueError("重复结束日期无效")
+        if recur_count not in (None, ""):
+            try: recur_count = int(recur_count)
+            except (TypeError, ValueError): raise ValueError("重复次数必须为正整数")
+            if recur_count < 1: raise ValueError("重复次数必须为正整数")
+        if not recur_end and recur_count in (None, ""):
+            raise ValueError("每周重复课程需要填写结束日期或重复次数")
+        schedule_date = None
+    else:
+        status_only = existing is not None and set((raw or {}).keys()).issubset({"status", "_skip_conflict"})
+        if not schedule_date and status_only:
+            day = int(existing.get("day_of_week") or day)
+        else:
+            try: parsed = datetime.strptime(schedule_date, "%Y-%m-%d").date()
+            except ValueError: raise ValueError("单次课程必须选择具体日期")
+            day = parsed.isoweekday()
+        recur_end = None; recur_count = None
+    return {**(raw or {}), "student_name": name,
+        "subject_type": str(data.get("subject_type") or "词汇").strip() or "词汇",
+        "day_of_week": day, "start_time": start_time, "duration_min": duration,
+        "price_per_session": price, "status": status,
+        "notes": str(data.get("notes") or "").strip(),
+        "is_recurring": 1 if recurring else 0, "schedule_date": schedule_date,
+        "recur_end_date": recur_end or None, "recur_until_count": recur_count}
+
 # ==================== 课表 API ====================
 @app.route("/api/schedule", methods=["GET"])
 def api_get_schedule():
@@ -387,7 +455,10 @@ def api_upcoming_reminders():
 def api_add_schedule():
     user, err = require_user()
     if err: return err
-    data = request.get_json(force=True)
+    try:
+        data = _validated_schedule_payload(request.get_json(force=True))
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
     data['user_id'] = user['id']
     if data.get("_skip_conflict"):
         entry_id = db.add_schedule_entry(data)
@@ -411,10 +482,14 @@ def api_add_schedule():
 def api_update_schedule(eid):
     user, err = require_user()
     if err: return err
-    data = request.get_json(force=True)
+    raw = request.get_json(force=True)
     existing = db.get_schedule_entry(eid, user['id'])
     if not existing:
         return jsonify({"ok": False, "error": "课程不存在"}), 404
+    try:
+        data = _validated_schedule_payload(raw, existing)
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
     if not data.get("_skip_conflict") and db.get_config("conflict_detection", user['id']) == "true":
         conflicts = db.check_schedule_conflict(
             data.get("day_of_week", existing.get("day_of_week", 1)),
@@ -473,6 +548,19 @@ def api_generate_reviews(eid):
     student_name = data.get("student_name", None)
     start_time = data.get("start_time", None)
     duration_min = data.get("duration_min", None)
+    try:
+        intervals = [int(value) for value in intervals]
+        if not intervals or any(value <= 0 for value in intervals) or len(intervals) != len(set(intervals)):
+            raise ValueError("复习间隔必须为不重复的正整数")
+        if schedule_date: datetime.strptime(str(schedule_date), "%Y-%m-%d")
+        if duration_min not in (None, ""):
+            duration_min = int(duration_min)
+            if not 10 <= duration_min <= 480:
+                raise ValueError("复习时长必须在 10 到 480 分钟之间")
+        if start_time and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", str(start_time)):
+            raise ValueError("复习时间无效")
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
     
     try:
         created_ids = db.generate_review_entries(

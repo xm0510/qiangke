@@ -48,6 +48,8 @@ class ScheduleConsistencyTests(unittest.TestCase):
             "start_time": start,
             "duration_min": 60,
             "status": "confirmed",
+            "is_recurring": 1,
+            "recur_until_count": 8,
         })
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         return response.get_json()["id"]
