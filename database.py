@@ -414,21 +414,33 @@ def update_schedule_entry(eid,data,user_id=None):
     allowed=["student_name","subject_type","day_of_week","start_time","duration_min","status","notes","price_per_session","is_recurring","recur_end_date","recur_until_count","schedule_date","review_interval_days","review_index"]
     fields=[f"{k}=?" for k in data if k in allowed]
     vals=[data[k] for k in data if k in allowed]
-    if fields:
-        fields.append("updated_at=CURRENT_TIMESTAMP"); vals.append(eid)
-        with db_cursor() as conn:
-            if user_id is not None:
-                vals.append(user_id)
-                conn.execute(f"UPDATE schedule_entries SET {','.join(fields)} WHERE id=? AND user_id=?",vals)
-            else:
-                conn.execute(f"UPDATE schedule_entries SET {','.join(fields)} WHERE id=?",vals)
-
-def delete_schedule_entry(eid,user_id=None):
+    if not fields:
+        return get_schedule_entry(eid,user_id) is not None
+    fields.append("updated_at=CURRENT_TIMESTAMP"); vals.append(eid)
     with db_cursor() as conn:
         if user_id is not None:
-            conn.execute("DELETE FROM schedule_entries WHERE id=? AND user_id=?",(eid,user_id))
+            vals.append(user_id)
+            result=conn.execute(f"UPDATE schedule_entries SET {','.join(fields)} WHERE id=? AND user_id=?",vals)
         else:
-            conn.execute("DELETE FROM schedule_entries WHERE id=?",(eid,))
+            result=conn.execute(f"UPDATE schedule_entries SET {','.join(fields)} WHERE id=?",vals)
+        return result.rowcount == 1
+
+def delete_schedule_entry(eid,user_id=None):
+    """Atomically delete a course and every review generated from it."""
+    with db_cursor() as conn:
+        if user_id is not None:
+            entry=conn.execute("SELECT id FROM schedule_entries WHERE id=? AND user_id=?",(eid,user_id)).fetchone()
+            if not entry:
+                return False
+            conn.execute("DELETE FROM schedule_entries WHERE parent_entry_id=? AND user_id=? AND source='review'",(eid,user_id))
+            result=conn.execute("DELETE FROM schedule_entries WHERE id=? AND user_id=?",(eid,user_id))
+        else:
+            entry=conn.execute("SELECT id FROM schedule_entries WHERE id=?",(eid,)).fetchone()
+            if not entry:
+                return False
+            conn.execute("DELETE FROM schedule_entries WHERE parent_entry_id=? AND source='review'",(eid,))
+            result=conn.execute("DELETE FROM schedule_entries WHERE id=?",(eid,))
+        return result.rowcount == 1
 
 def get_all_schedule_entries(user_id=None):
     with db_cursor(commit=False) as conn:
@@ -598,9 +610,10 @@ def generate_review_entries(parent_id, intervals, student_name=None, start_time=
 def delete_review_entries(parent_id,user_id=None):
     with db_cursor() as conn:
         if user_id is not None:
-            conn.execute("DELETE FROM schedule_entries WHERE parent_entry_id=? AND user_id=? AND source='review'",(parent_id,user_id))
+            result=conn.execute("DELETE FROM schedule_entries WHERE parent_entry_id=? AND user_id=? AND source='review'",(parent_id,user_id))
         else:
-            conn.execute("DELETE FROM schedule_entries WHERE parent_entry_id=? AND source='review'",(parent_id,))
+            result=conn.execute("DELETE FROM schedule_entries WHERE parent_entry_id=? AND source='review'",(parent_id,))
+        return result.rowcount
 
 def get_all_schedule_entries_for_week(week_start_date,user_id=None):
     week_start = week_start_date

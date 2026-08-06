@@ -412,14 +412,29 @@ def api_update_schedule(eid):
     user, err = require_user()
     if err: return err
     data = request.get_json(force=True)
-    db.update_schedule_entry(eid, data, user['id'])
-    return jsonify({"ok": True})
+    existing = db.get_schedule_entry(eid, user['id'])
+    if not existing:
+        return jsonify({"ok": False, "error": "课程不存在"}), 404
+    if not data.get("_skip_conflict") and db.get_config("conflict_detection", user['id']) == "true":
+        conflicts = db.check_schedule_conflict(
+            data.get("day_of_week", existing.get("day_of_week", 1)),
+            data.get("start_time", existing.get("start_time", "20:00")),
+            data.get("duration_min", existing.get("duration_min", 60)),
+            exclude_id=eid,
+            user_id=user['id']
+        )
+        if conflicts:
+            return jsonify({"ok": False, "conflict": True, "conflicts": conflicts})
+    if not db.update_schedule_entry(eid, data, user['id']):
+        return jsonify({"ok": False, "error": "课程保存失败"}), 409
+    return jsonify({"ok": True, "id": eid})
 
 @app.route("/api/schedule/<int:eid>", methods=["DELETE"])
 def api_delete_schedule(eid):
     user, err = require_user()
     if err: return err
-    db.delete_schedule_entry(eid, user['id'])
+    if not db.delete_schedule_entry(eid, user['id']):
+        return jsonify({"ok": False, "error": "课程不存在"}), 404
     return jsonify({"ok": True})
 
 @app.route("/api/schedule/conflict-check", methods=["POST"])
@@ -480,9 +495,11 @@ def api_delete_reviews(eid):
     """Delete all review entries for a parent schedule entry"""
     user, err = require_user()
     if err: return err
-    db.delete_review_entries(eid, user['id'])
+    if not db.get_schedule_entry(eid, user['id']):
+        return jsonify({"ok": False, "error": "课程不存在"}), 404
+    deleted = db.delete_review_entries(eid, user['id'])
     db.add_log("review_del", f"删除了课表#{eid}的所有抗遗忘复习", user['id'])
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "deleted": deleted})
 
 @app.route("/api/schedule/week", methods=["GET"])
 def api_get_schedule_for_week():
