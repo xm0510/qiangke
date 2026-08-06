@@ -46,6 +46,12 @@ def init_db():
     with db_cursor() as conn:
         c = conn.cursor()
         c.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+        c.execute("CREATE TABLE IF NOT EXISTS system_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+        c.execute("INSERT OR IGNORE INTO system_settings(key,value,updated_at) SELECT key,value,updated_at FROM config WHERE key='admin_recovery_password_fingerprint'")
+        c.execute("DELETE FROM config WHERE key='admin_recovery_password_fingerprint'")
+        invite_code = os.environ.get("REGISTRATION_INVITE_CODE", "").strip().strip('\"').strip("'")
+        if invite_code:
+            c.execute("INSERT OR IGNORE INTO system_settings(key,value) VALUES ('registration_invite_code',?)", (invite_code,))
         c.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, phone TEXT NOT NULL UNIQUE, nickname TEXT DEFAULT '', password_hash TEXT, password_salt TEXT, is_admin INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, last_login_at DATETIME)")
         c.execute("CREATE TABLE IF NOT EXISTS user_config (user_id INTEGER NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(user_id,key), FOREIGN KEY(user_id) REFERENCES users(id))")
         c.execute("CREATE TABLE IF NOT EXISTS password_reset_codes (phone TEXT PRIMARY KEY, code_hash TEXT NOT NULL, expires_at DATETIME NOT NULL, created_by INTEGER, consumed_at DATETIME)")
@@ -170,7 +176,7 @@ def apply_admin_recovery_password(phone, password):
     fingerprint = hashlib.sha256((phone + "\0" + str(password)).encode("utf-8")).hexdigest()
     recovery_key = "admin_recovery_password_fingerprint"
     with db_cursor() as conn:
-        previous = conn.execute("SELECT value FROM config WHERE key=?", (recovery_key,)).fetchone()
+        previous = conn.execute("SELECT value FROM system_settings WHERE key=?", (recovery_key,)).fetchone()
         if previous and secrets.compare_digest(previous["value"], fingerprint):
             return False
         salt, digest = _hash_password(password)
@@ -191,7 +197,7 @@ def apply_admin_recovery_password(phone, password):
         conn.execute("UPDATE users SET is_admin=CASE WHEN id=? THEN 1 ELSE 0 END", (user_id,))
         conn.execute("DELETE FROM auth_tokens WHERE user_id=?", (user_id,))
         conn.execute(
-            "INSERT OR REPLACE INTO config(key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
+            "INSERT OR REPLACE INTO system_settings(key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
             (recovery_key, fingerprint),
         )
         return True
@@ -276,6 +282,18 @@ def set_config(key,value,user_id=None):
     with db_cursor() as conn:
         if user_id is not None: conn.execute("INSERT OR REPLACE INTO user_config (user_id,key,value,updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP)",(user_id,key,str(value)))
         else: conn.execute("INSERT OR REPLACE INTO config (key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",(key,str(value)))
+
+def get_system_setting(key, default=None):
+    with db_cursor(commit=False) as conn:
+        row = conn.execute("SELECT value FROM system_settings WHERE key=?", (key,)).fetchone()
+        return row["value"] if row else default
+
+def set_system_setting(key, value):
+    with db_cursor() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO system_settings(key,value,updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
+            (key, str(value)),
+        )
 
 def get_all_config(user_id=None):
     with db_cursor(commit=False) as conn:

@@ -258,7 +258,7 @@
     </div>
   </div>
 
-  <div class="card full-width" id="adminPanel" style="display:none"><h3><span class="icon">&#128273;</span> &#31649;&#29702;&#21592;&#36134;&#21495;&#31649;&#29702;</h3><div class="row"><label>&#27880;&#20876;&#36992;&#35831;&#30721;</label><button class="btn btn-outline" onclick="showInviteCode()">&#26597;&#30475; / &#22797;&#21046;</button><span id="inviteCodeResult" class="tip-text"></span></div><div class="row"><label>&#30446;&#26631;&#25163;&#26426;&#21495;</label><input id="resetTargetPhone" placeholder="13800138000"><button class="btn btn-outline" onclick="generateResetCode()">&#29983;&#25104;&#19968;&#27425;&#24615;&#37325;&#32622;&#30721;</button></div><div id="resetCodeResult" class="tip-text"></div></div>
+  <div class="card full-width" id="adminPanel" style="display:none"><h3><span class="icon">&#128273;</span> &#31649;&#29702;&#21592;&#36134;&#21495;&#31649;&#29702;</h3><div class="row"><label>&#27880;&#20876;&#36992;&#35831;&#30721;</label><button class="btn btn-outline" onclick="showInviteCode()">&#26597;&#30475; / &#22797;&#21046;</button><button class="btn btn-outline" onclick="rotateInviteCode()">&#29983;&#25104;&#26032;&#36992;&#35831;&#30721;</button><span id="inviteCodeResult" class="tip-text"></span></div><div class="row"><label>&#30446;&#26631;&#25163;&#26426;&#21495;</label><input id="resetTargetPhone" placeholder="13800138000"><button class="btn btn-outline" onclick="generateResetCode()">&#29983;&#25104;&#37325;&#32622;&#38142;&#25509;</button></div><div id="resetCodeResult" class="tip-text"></div></div>
 
   <div id="reminderBanner" class="reminder-banner"></div>
 
@@ -644,14 +644,24 @@ async function showInviteCode() {
   try { await navigator.clipboard.writeText(r.invite_code); toast('\u9080\u8bf7\u7801\u5df2\u590d\u5236'); } catch(e) {}
 }
 
+async function rotateInviteCode() {
+  if (!confirm('\u751f\u6210\u65b0\u9080\u8bf7\u7801\u540e\uff0c\u65e7\u9080\u8bf7\u7801\u4f1a\u7acb\u5373\u5931\u6548\u3002\u7ee7\u7eed\u5417\uff1f')) return;
+  const r = await api('POST', '/api/auth/admin/invite-code', {});
+  const out = document.getElementById('inviteCodeResult');
+  if (!r.ok) { out.textContent = r.error || '\u751f\u6210\u5931\u8d25'; return; }
+  out.textContent = r.invite_code;
+  try { await navigator.clipboard.writeText(r.invite_code); toast('\u65b0\u9080\u8bf7\u7801\u5df2\u590d\u5236'); } catch(e) {}
+}
+
 async function generateResetCode() {
   const phone = document.getElementById('resetTargetPhone').value.trim();
   const out = document.getElementById('resetCodeResult');
   if (!/^1[3-9]\d{9}$/.test(phone)) { out.textContent = '\u8bf7\u8f93\u5165\u6b63\u786e\u624b\u673a\u53f7'; return; }
   const r = await api('POST', '/api/auth/admin/reset-code', { phone });
   if (!r.ok) { out.textContent = r.error || '\u751f\u6210\u5931\u8d25'; return; }
-  out.textContent = '\u4e00\u6b21\u6027\u91cd\u7f6e\u7801\uff1a' + r.reset_code + '\uff0815 \u5206\u949f\u5185\u6709\u6548\uff09';
-  try { await navigator.clipboard.writeText(r.reset_code); toast('\u91cd\u7f6e\u7801\u5df2\u590d\u5236'); } catch(e) {}
+  const resetUrl = location.origin + r.reset_path;
+  out.innerHTML = '<a href="' + r.reset_path + '" target="_blank">\u6253\u5f00\u91cd\u7f6e\u94fe\u63a5</a>\uff0815 \u5206\u949f\u5185\u6709\u6548\u?';
+  try { await navigator.clipboard.writeText(resetUrl); toast('\u91cd\u7f6e\u94fe\u63a5\u5df2\u590d\u5236'); } catch(e) {}
 }
 
 // ==================== Obvious schedule reminders ====================

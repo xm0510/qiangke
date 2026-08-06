@@ -4,6 +4,7 @@
 """
 import json, os, sys, threading, time, re, hashlib, secrets
 from datetime import date, datetime, timedelta
+from urllib.parse import urlencode
 from flask import Flask, request, jsonify, send_from_directory, Response
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -22,7 +23,7 @@ def _load_local_env():
 _load_local_env()
 
 def _ensure_registration_invite_code():
-    code=os.environ.get("REGISTRATION_INVITE_CODE","").strip()
+    code=os.environ.get("REGISTRATION_INVITE_CODE","").strip().strip('"').strip("'")
     if code:
         os.environ["REGISTRATION_INVITE_CODE"] = code
         return code
@@ -152,8 +153,8 @@ def api_auth_register():
     data=request.get_json(force=True)
     try:
         phone=_normalize_phone(data.get("phone",""))
-        expected=os.environ.get("REGISTRATION_INVITE_CODE","").strip()
-        supplied=str(data.get("invite_code","")).strip()
+        expected=str(db.get_system_setting("registration_invite_code", "")).strip().strip('"').strip("'")
+        supplied=str(data.get("invite_code","")).strip().strip('"').strip("'")
         if not expected: raise RuntimeError("REGISTRATION_INVITE_CODE is not configured")
         if not secrets.compare_digest(expected,supplied): raise ValueError("\u9080\u8bf7\u7801\u9519\u8bef\uff0c\u8bf7\u5411\u7ba1\u7406\u5458\u83b7\u53d6\u6700\u65b0\u9080\u8bf7\u7801")
         result=db.register_or_set_password(phone,data.get("password",""))
@@ -161,12 +162,21 @@ def api_auth_register():
     except Exception as e:
         return jsonify({"ok":False,"error":str(e)}),400
 
-@app.route("/api/auth/admin/invite-code", methods=["GET"])
+@app.route("/api/auth/admin/invite-code", methods=["GET", "POST"])
 def api_auth_admin_invite_code():
     user,err=require_user()
     if err:return err
     if not user.get("is_admin"):return jsonify({"ok":False,"error":"forbidden"}),403
-    return jsonify({"ok":True,"invite_code":os.environ.get("REGISTRATION_INVITE_CODE","")})
+    if request.method == "POST":
+        data=request.get_json(silent=True) or {}
+        code=str(data.get("invite_code","")).strip().strip('"').strip("'")
+        if not code:
+            code=''.join(secrets.choice(_RESET_CODE_ALPHABET) for _ in range(12))
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,32}", code):
+            return jsonify({"ok":False,"error":"\u9080\u8bf7\u7801\u9700\u4e3a 8-32 \u4f4d\u5b57\u6bcd\u3001\u6570\u5b57\u3001\u4e0b\u5212\u7ebf\u6216\u8fde\u5b57\u7b26"}),400
+        db.set_system_setting("registration_invite_code", code)
+        return jsonify({"ok":True,"invite_code":code})
+    return jsonify({"ok":True,"invite_code":db.get_system_setting("registration_invite_code","")})
 
 @app.route("/api/auth/admin/reset-code", methods=["POST"])
 def api_auth_admin_reset_code():
@@ -178,7 +188,8 @@ def api_auth_admin_reset_code():
         phone=_normalize_phone(data.get("phone",""))
         code=''.join(secrets.choice(_RESET_CODE_ALPHABET) for _ in range(10))
         db.save_password_reset_code(phone,_reset_code_hash(phone,code),user['id'],15)
-        return jsonify({"ok":True,"reset_code":code,"expires_in":900})
+        reset_path="/login.html?"+urlencode({"mode":"reset","phone":phone,"code":code})
+        return jsonify({"ok":True,"reset_code":code,"reset_path":reset_path,"expires_in":900})
     except Exception as e:
         return jsonify({"ok":False,"error":str(e)}),400
 
