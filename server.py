@@ -246,6 +246,11 @@ def api_auth_reset_password():
     except Exception as e:
         return jsonify({"ok":False,"error":str(e)}),400
 
+@app.route("/api/auth/status", methods=["GET"])
+def api_auth_status():
+    user = current_user()
+    return jsonify({"ok": True, "authenticated": bool(user), "user": user})
+
 @app.route("/api/auth/me", methods=["GET"])
 def api_auth_me():
     user = current_user()

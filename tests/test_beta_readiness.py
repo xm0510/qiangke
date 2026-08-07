@@ -53,6 +53,12 @@ class BetaReadinessTests(unittest.TestCase):
              "status": "completed", "notes": "Reading"},
         ]
 
+    def test_public_auth_status_does_not_emit_an_expected_401(self):
+        anonymous = self.server.app.test_client()
+        response = anonymous.get("/api/auth/status")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"ok": True, "authenticated": False, "user": None})
+
     def test_import_requires_critical_fields_with_row_number(self):
         rows = self.rows()
         del rows[0]["schedule_date"]

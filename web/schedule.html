@@ -106,7 +106,7 @@ statusText={pending:'\u5f85\u4e0a\u8bfe',confirmed:'\u5f85\u4e0a\u8bfe',complete
 async function checkLogin(){
   var headers=token?{Authorization:'Bearer '+token}:{};
   var response=null,payload=null;
-  try{response=await fetch('/api/auth/me',{headers:headers});if(response.ok)payload=await response.json()}catch(e){}
+  try{response=await fetch(demoMode?'/api/auth/status':'/api/auth/me',{headers:headers});if(response.ok)payload=await response.json()}catch(e){}
   if(demoMode){
     document.body.classList.add('demo-mode');
     demoAuthenticated=!!(payload&&payload.user);user=demoAuthenticated?payload.user:{phone:'DEMO',nickname:'\u6f14\u793a\u6a21\u5f0f'};
