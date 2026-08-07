@@ -2,7 +2,7 @@
 """微信抢单系统 - Flask API 服务器 v1.2
 修复: 测试回复返回详细诊断信息
 """
-import json, os, sys, threading, time, re, hashlib, secrets
+import json, os, sys, threading, time, re, hashlib, secrets, uuid
 from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 from flask import Flask, request, jsonify, send_from_directory, Response
@@ -42,6 +42,7 @@ _ensure_registration_invite_code()
 import database as db
 
 app = Flask(__name__, static_folder="web/static", static_url_path="/static")
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
 def _normalize_phone(phone):
     phone = re.sub(r"\s+", "", str(phone or ""))
@@ -162,6 +163,14 @@ def admin_page():
 @app.route("/login.html")
 def login_page():
     return send_from_directory(os.path.join(BASE_DIR, "web"), "login.html")
+
+@app.route("/privacy")
+def privacy_page():
+    return send_from_directory(os.path.join(BASE_DIR, "web"), "privacy.html")
+
+@app.route("/terms")
+def terms_page():
+    return send_from_directory(os.path.join(BASE_DIR, "web"), "terms.html")
 
 @app.route("/favicon.svg")
 def favicon():
@@ -412,7 +421,7 @@ def _validated_schedule_payload(raw, existing=None):
         "subject_type": str(data.get("subject_type") or "词汇").strip() or "词汇",
         "day_of_week": day, "start_time": start_time, "duration_min": duration,
         "price_per_session": price, "status": status,
-        "notes": str(data.get("notes") or "").strip(),
+        "notes": str(data.get("notes") or "").strip()[:500],
         "is_recurring": 1 if recurring else 0, "schedule_date": schedule_date,
         "recur_end_date": recur_end or None, "recur_until_count": recur_count}
 
@@ -551,6 +560,166 @@ def api_check_conflict():
 
 
 # ==================== 抗遗忘 Review API ====================
+
+
+
+def _schedule_time_bounds(entry):
+    start = datetime.strptime(str(entry.get("start_time") or ""), "%H:%M")
+    return start, start + timedelta(minutes=int(entry.get("duration_min") or 0))
+
+
+def _entries_overlap(first, second):
+    try:
+        first_start, first_end = _schedule_time_bounds(first)
+        second_start, second_end = _schedule_time_bounds(second)
+        return first_start < second_end and first_end > second_start
+    except (TypeError, ValueError):
+        return False
+
+
+def _validated_import_batch(raw, user_id):
+    rows = raw.get("rows") if isinstance(raw, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("\u5bfc\u5165\u6570\u636e\u683c\u5f0f\u65e0\u6548")
+    if not rows:
+        raise ValueError("CSV \u6ca1\u6709\u53ef\u5bfc\u5165\u7684\u6570\u636e")
+    if len(rows) > 200:
+        raise ValueError("\u5355\u6b21\u6700\u591a\u5bfc\u5165 200 \u6761\u8bfe\u7a0b")
+
+    import_id = str(raw.get("importId") or "").strip()
+    try:
+        import_id = str(uuid.UUID(import_id))
+    except (ValueError, AttributeError):
+        raise ValueError("\u5bfc\u5165\u6279\u6b21\u7f16\u53f7\u65e0\u6548")
+
+    required = {
+        "student_name": "\u5b66\u751f\u59d3\u540d",
+        "subject_type": "\u8bfe\u7a0b\u7c7b\u578b",
+        "schedule_date": "\u4e0a\u8bfe\u65e5\u671f",
+        "start_time": "\u5f00\u59cb\u65f6\u95f4",
+        "duration_min": "\u65f6\u957f(\u5206\u949f)",
+        "price_per_session": "\u8bfe\u65f6\u8d39",
+    }
+    status_aliases = {
+        "": "pending", "pending": "pending", "\u5f85\u4e0a\u8bfe": "pending", "\u5f85\u786e\u8ba4": "pending",
+        "confirmed": "confirmed", "\u5df2\u786e\u8ba4": "confirmed",
+        "completed": "completed", "\u5df2\u5b8c\u6210": "completed",
+        "cancelled": "cancelled", "\u5df2\u53d6\u6d88": "cancelled",
+    }
+    normalized, errors = [], []
+    for index, source in enumerate(rows):
+        row_number = index + 2
+        if not isinstance(source, dict):
+            errors.append({"row": row_number, "error": "\u8be5\u884c\u4e0d\u662f\u6709\u6548\u8bb0\u5f55"})
+            continue
+        missing = [label for key, label in required.items() if str(source.get(key, "")).strip() == ""]
+        if missing:
+            errors.append({"row": row_number, "error": "\u7f3a\u5c11\u5fc5\u586b\u5b57\u6bb5\uff1a" + "\u3001".join(missing)})
+            continue
+        try:
+            parsed_date = datetime.strptime(str(source.get("schedule_date")).strip(), "%Y-%m-%d").date()
+            raw_status = str(source.get("status") or "").strip()
+            if raw_status not in status_aliases:
+                raise ValueError("\u72b6\u6001\u53ea\u652f\u6301\uff1a\u5f85\u4e0a\u8bfe\u3001\u5df2\u5b8c\u6210\u3001\u5df2\u53d6\u6d88")
+            payload = _validated_schedule_payload({
+                "student_name": source.get("student_name"), "subject_type": source.get("subject_type"),
+                "schedule_date": parsed_date.isoformat(), "day_of_week": parsed_date.isoweekday(),
+                "start_time": str(source.get("start_time") or "").strip(),
+                "duration_min": source.get("duration_min"), "price_per_session": source.get("price_per_session"),
+                "status": status_aliases[raw_status], "notes": source.get("notes") or "", "is_recurring": 0,
+            })
+            payload["row_number"] = row_number
+            normalized.append(payload)
+        except (TypeError, ValueError) as exc:
+            errors.append({"row": row_number, "error": str(exc)})
+
+    for index, row in enumerate(normalized):
+        conflicts = []
+        target_date = datetime.strptime(row["schedule_date"], "%Y-%m-%d").date()
+        for existing in db.get_schedule_entries_for_date(target_date, user_id):
+            if _entries_overlap(row, existing):
+                conflicts.append({"kind": "existing", "id": existing.get("id"),
+                                  "student_name": existing.get("student_name") or "",
+                                  "start_time": existing.get("start_time") or ""})
+        for other in normalized[:index]:
+            if other["schedule_date"] == row["schedule_date"] and _entries_overlap(row, other):
+                conflicts.append({"kind": "batch", "row": other["row_number"],
+                                  "student_name": other.get("student_name") or "",
+                                  "start_time": other.get("start_time") or ""})
+        row["conflicts"] = conflicts
+
+    canonical_rows = [{key: value for key, value in row.items() if key not in {"row_number", "conflicts", "_skip_conflict"}} for row in normalized]
+    content_hash = hashlib.sha256(json.dumps(canonical_rows, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    return import_id, normalized, errors, content_hash
+
+
+@app.route("/api/schedule/import", methods=["POST"])
+def api_schedule_import():
+    user, err = require_user()
+    if err: return err
+    raw = request.get_json(silent=True) or {}
+    try:
+        import_id, rows, errors, content_hash = _validated_import_batch(raw, user["id"])
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc), "errors": []}), 400
+
+    preview_rows = [{"row": row["row_number"], "student_name": row["student_name"],
+        "subject_type": row["subject_type"], "schedule_date": row["schedule_date"],
+        "start_time": row["start_time"], "duration_min": row["duration_min"],
+        "price_per_session": row["price_per_session"], "status": row["status"],
+        "notes": row["notes"], "conflicts": row["conflicts"]} for row in rows]
+    conflict_count = sum(len(row["conflicts"]) for row in rows)
+    preview = {"ok": not errors, "importId": import_id, "count": len(rows), "errors": errors,
+               "conflict_count": conflict_count, "rows": preview_rows}
+    if errors:
+        preview["error"] = "\u5bfc\u5165\u6587\u4ef6\u5b58\u5728\u9519\u8bef\uff0c\u8bf7\u4fee\u6b63\u540e\u91cd\u65b0\u4e0a\u4f20"
+        return jsonify(preview), 422
+    if raw.get("commit") is not True:
+        return jsonify(preview)
+    duplicate = db.find_completed_schedule_import(user["id"], import_id, content_hash)
+    if duplicate:
+        return jsonify({"ok": True, "importId": duplicate["import_id"], "created": 0,
+                        "ids": duplicate["ids"], "duplicate": True})
+    if conflict_count and raw.get("skipConflicts") is not True:
+        preview.update({"ok": False, "conflict": True, "error": "\u5bfc\u5165\u8bfe\u7a0b\u5b58\u5728\u65f6\u95f4\u51b2\u7a81"})
+        return jsonify(preview), 409
+
+    clean_rows = [{key: value for key, value in row.items() if key not in {"row_number", "conflicts", "_skip_conflict"}} for row in rows]
+    try:
+        result = db.import_schedule_entries(user["id"], import_id, content_hash, clean_rows)
+        db.add_log("schedule_import", f"CSV import {result['import_id']}: {len(result['ids'])}", user["id"])
+        return jsonify({"ok": True, "importId": result["import_id"],
+                        "created": 0 if result["duplicate"] else len(result["ids"]),
+                        "ids": result["ids"], "duplicate": result["duplicate"]})
+    except Exception as exc:
+        app.logger.exception("schedule CSV import failed")
+        try:
+            db.add_log("schedule_import_failed", f"CSV import {import_id}: {type(exc).__name__}", user["id"])
+        except Exception:
+            app.logger.exception("failed to persist schedule import error log")
+        return jsonify({"ok": False, "error": "\u6574\u6279\u5bfc\u5165\u5931\u8d25\uff0c\u672c\u6b21\u6ca1\u6709\u5199\u5165\u4efb\u4f55\u8bfe\u7a0b"}), 500
+
+
+@app.route("/api/schedule/import/latest", methods=["GET"])
+def api_schedule_import_latest():
+    user, err = require_user()
+    if err: return err
+    return jsonify({"ok": True, "batch": db.get_latest_schedule_import(user["id"])})
+
+
+@app.route("/api/schedule/import/latest", methods=["DELETE"])
+def api_schedule_import_undo_latest():
+    user, err = require_user()
+    if err: return err
+    try:
+        result = db.undo_schedule_import(user["id"])
+        if not result:
+            return jsonify({"ok": False, "error": "\u6ca1\u6709\u53ef\u64a4\u9500\u7684\u5bfc\u5165\u6279\u6b21"}), 404
+        db.add_log("schedule_import_undo", f"CSV import undo {result['import_id']}: {result['deleted']}", user["id"])
+        return jsonify({"ok": True, **result})
+    except Exception:
+        app.logger.exception("schedule CSV import undo failed")
+        return jsonify({"ok": False, "error": "\u64a4\u9500\u5931\u8d25\uff0c\u6570\u636e\u5df2\u56de\u6eda"}), 500
 
 @app.route("/api/schedule/<int:eid>/reviews", methods=["GET"])
 def api_get_reviews(eid):

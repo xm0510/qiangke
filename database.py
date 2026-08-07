@@ -65,7 +65,22 @@ def init_db():
         c.execute("CREATE TABLE IF NOT EXISTS auth_tokens (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, expires_at DATETIME, FOREIGN KEY(user_id) REFERENCES users(id))")
         c.execute("CREATE TABLE IF NOT EXISTS monitored_groups (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, group_name TEXT NOT NULL, enabled INTEGER DEFAULT 1, added_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id,group_name))")
         c.execute("CREATE TABLE IF NOT EXISTS grab_records (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, group_name TEXT NOT NULL, message_text TEXT NOT NULL, matched_type TEXT, match_method TEXT, reply_content TEXT, reply_status TEXT DEFAULT 'success', ai_extracted_time TEXT, ai_extracted_day INTEGER, ai_extracted_start TEXT, ai_extracted_duration INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
-        c.execute("CREATE TABLE IF NOT EXISTS schedule_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, student_name TEXT DEFAULT '', subject_type TEXT DEFAULT '词汇', day_of_week INTEGER NOT NULL, start_time TEXT NOT NULL, duration_min INTEGER DEFAULT 60, status TEXT DEFAULT 'pending', notes TEXT DEFAULT '', source TEXT DEFAULT 'manual', source_grab_id INTEGER, is_recurring INTEGER DEFAULT 0, recur_end_date TEXT, recur_until_count INTEGER, parent_entry_id INTEGER, price_per_session REAL DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+        c.execute("CREATE TABLE IF NOT EXISTS schedule_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, student_name TEXT DEFAULT '', subject_type TEXT DEFAULT '词汇', day_of_week INTEGER NOT NULL, start_time TEXT NOT NULL, duration_min INTEGER DEFAULT 60, status TEXT DEFAULT 'pending', notes TEXT DEFAULT '', source TEXT DEFAULT 'manual', source_grab_id INTEGER, is_recurring INTEGER DEFAULT 0, recur_end_date TEXT, recur_until_count INTEGER, parent_entry_id INTEGER, price_per_session REAL DEFAULT 0, import_id TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
+        c.execute("""CREATE TABLE IF NOT EXISTS schedule_imports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            import_id TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            row_count INTEGER NOT NULL DEFAULT 0,
+            entry_ids TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL DEFAULT 'completed',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            undone_at DATETIME,
+            UNIQUE(user_id, import_id),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )""")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_schedule_imports_user_created ON schedule_imports(user_id, created_at DESC)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_schedule_imports_user_hash ON schedule_imports(user_id, content_hash, status)")
         c.execute("CREATE TABLE IF NOT EXISTS income_snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT, year INTEGER NOT NULL, month INTEGER DEFAULT 0, week_start TEXT, total_sessions INTEGER DEFAULT 0, total_income REAL DEFAULT 0, snapshot_date DATE DEFAULT CURRENT_DATE)")
         c.execute("CREATE TABLE IF NOT EXISTS activity_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action_type TEXT NOT NULL, description TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)")
         c.execute("""CREATE TABLE IF NOT EXISTS course_feedback (
@@ -121,6 +136,8 @@ def init_db():
         try: c.execute("ALTER TABLE schedule_entries ADD COLUMN review_index INTEGER")
         except: pass
         try: c.execute("ALTER TABLE schedule_entries ADD COLUMN user_id INTEGER")
+        except: pass
+        try: c.execute("ALTER TABLE schedule_entries ADD COLUMN import_id TEXT")
         except: pass
         defaults = {"monitor_mode":"multi","grab_mode":"multi","selected_types":json.dumps(["词汇","阅读","语法","完型","听口","写作","抗遗忘"]),"reply_content":"1","quote_reply":"true","auto_reply_on_screen_change":"true","ai_enabled":"false","ai_api_url":"https://api.deepseek.com/v1/chat/completions","ai_api_key":"","ai_model":"deepseek-chat","ai_default_type":"词汇","reply_delay_ms":"0","auto_start":"false","auto_add_schedule":"false","conflict_detection":"true","conflict_action":"warn_only","grab_conflict_mode":"grab_then_check","recurring_enabled":"false","recurring_auto_generate":"true","recurring_weeks_ahead":"4","recurring_end_mode":"by_date","recurring_end_date":"","income_stats_enabled":"false","default_price":"100","today_reminder":"false","pre_class_reminder":"true","pre_class_minutes":"15","export_format":"text","service_status":"stopped","selected_group_id":""}
         for k,v in defaults.items(): c.execute("INSERT OR IGNORE INTO config (key,value) VALUES (?,?)",(k,v))
@@ -373,6 +390,118 @@ def add_schedule_entry(data):
             data.get("review_index")
         ))
         return c.lastrowid
+
+
+
+def find_completed_schedule_import(user_id, import_id, content_hash):
+    with db_cursor(commit=False) as conn:
+        row = conn.execute(
+            """SELECT * FROM schedule_imports
+               WHERE user_id=? AND status='completed' AND (import_id=? OR content_hash=?)
+               ORDER BY CASE WHEN import_id=? THEN 0 ELSE 1 END,id DESC LIMIT 1""",
+            (user_id, import_id, content_hash, import_id),
+        ).fetchone()
+        if not row:
+            return None
+        return {"import_id": row["import_id"], "ids": json.loads(row["entry_ids"] or "[]")}
+
+
+def import_schedule_entries(user_id, import_id, content_hash, rows):
+    """Atomically import one idempotent schedule batch."""
+    with db_cursor() as conn:
+        existing = conn.execute(
+            "SELECT * FROM schedule_imports WHERE user_id=? AND import_id=?",
+            (user_id, import_id),
+        ).fetchone()
+        if existing and existing["status"] == "completed":
+            return {"import_id": import_id, "ids": json.loads(existing["entry_ids"] or "[]"), "duplicate": True}
+        if existing:
+            conn.execute("DELETE FROM schedule_imports WHERE id=?", (existing["id"],))
+
+        duplicate = conn.execute(
+            """SELECT * FROM schedule_imports
+               WHERE user_id=? AND content_hash=? AND status='completed'
+               ORDER BY id DESC LIMIT 1""",
+            (user_id, content_hash),
+        ).fetchone()
+        if duplicate:
+            return {"import_id": duplicate["import_id"], "ids": json.loads(duplicate["entry_ids"] or "[]"), "duplicate": True}
+
+        ids = []
+        for data in rows:
+            cursor = conn.execute(
+                """INSERT INTO schedule_entries
+                   (user_id,student_name,subject_type,day_of_week,start_time,duration_min,status,notes,
+                    source,source_grab_id,is_recurring,recur_end_date,recur_until_count,parent_entry_id,
+                    price_per_session,schedule_date,review_interval_days,review_index,import_id)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (
+                    user_id, data.get("student_name", ""), data.get("subject_type", "\u5176\u4ed6"),
+                    data.get("day_of_week", 1), data.get("start_time", "20:00"),
+                    data.get("duration_min", 60), data.get("status", "pending"),
+                    data.get("notes", ""), "csv_import", None, 0, None, None, None,
+                    data.get("price_per_session", 0), data.get("schedule_date"), None, None, import_id,
+                ),
+            )
+            ids.append(cursor.lastrowid)
+
+        conn.execute(
+            """INSERT INTO schedule_imports
+               (user_id,import_id,content_hash,row_count,entry_ids,status)
+               VALUES (?,?,?,?,?,'completed')""",
+            (user_id, import_id, content_hash, len(ids), json.dumps(ids)),
+        )
+        return {"import_id": import_id, "ids": ids, "duplicate": False}
+
+
+def get_latest_schedule_import(user_id):
+    with db_cursor(commit=False) as conn:
+        row = conn.execute(
+            """SELECT import_id,row_count,created_at,status FROM schedule_imports
+               WHERE user_id=? AND status='completed' ORDER BY id DESC LIMIT 1""",
+            (user_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def undo_schedule_import(user_id, import_id=None):
+    """Atomically undo the selected or latest completed CSV import."""
+    with db_cursor() as conn:
+        if import_id:
+            batch = conn.execute(
+                """SELECT * FROM schedule_imports
+                   WHERE user_id=? AND import_id=? AND status='completed'""",
+                (user_id, import_id),
+            ).fetchone()
+        else:
+            batch = conn.execute(
+                """SELECT * FROM schedule_imports
+                   WHERE user_id=? AND status='completed' ORDER BY id DESC LIMIT 1""",
+                (user_id,),
+            ).fetchone()
+        if not batch:
+            return None
+
+        imported = conn.execute(
+            "SELECT id FROM schedule_entries WHERE user_id=? AND import_id=?",
+            (user_id, batch["import_id"]),
+        ).fetchall()
+        ids = [row["id"] for row in imported]
+        if ids:
+            marks = ",".join("?" for _ in ids)
+            conn.execute(
+                f"DELETE FROM schedule_entries WHERE user_id=? AND source='review' AND parent_entry_id IN ({marks})",
+                [user_id] + ids,
+            )
+        deleted = conn.execute(
+            "DELETE FROM schedule_entries WHERE user_id=? AND import_id=?",
+            (user_id, batch["import_id"]),
+        ).rowcount
+        conn.execute(
+            "UPDATE schedule_imports SET status='undone',undone_at=CURRENT_TIMESTAMP WHERE id=?",
+            (batch["id"],),
+        )
+        return {"import_id": batch["import_id"], "deleted": deleted}
 
 def get_schedule_entry(eid,user_id=None):
     with db_cursor(commit=False) as conn:

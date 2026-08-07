@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>课程反馈</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -14,16 +15,16 @@
 <nav class="top"><div class="topin"><a class="brand" href="/feedback">&#24055;&#38476; &#183; &#35838;&#31243;&#21453;&#39304;</a><button type="button" class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="mainNav" onclick="toggleNav()">&#33756;&#21333;</button><div class="nav" id="mainNav"><a href="/">&#20171;&#32461;</a><a href="/schedule">&#35838;&#34920;</a><a class="active" href="/feedback">&#35838;&#31243;&#21453;&#39304;</a><a href="/automation">&#24494;&#20449;&#33258;&#21160;&#21270;</a><a href="/admin" id="adminNav" class="hidden">&#31649;&#29702;&#21592;</a><span id="userBadge" class="small" style="color:#f3e8ff"></span><button onclick="logout()">&#36864;&#20986;&#30331;&#24405;</button></div></div></nav>
 <main class="wrap">
   <section class="hero">
-    <h1>上课反馈与手机提醒</h1>
+    <h1>上课反馈与日历提醒</h1>
     <p>主课每节一份反馈；同一学生同一天的多次抗遗忘自动合并成一份反馈。</p>
     <div class="tools">
       <button class="btn out" onclick="moveDate(-1)">前一天</button>
       <input id="feedbackDate" type="date" onchange="loadCandidates()">
       <button class="btn out" onclick="moveDate(1)">后一天</button>
       <button class="btn soft" onclick="goToday()">今天</button>
-      <a id="dayCalendar" class="btn green" href="#">加入当天课程到手机日历</a>
+      <a id="dayCalendar" class="btn green" href="#">添加当天课程到手机日历</a>
     </div>
-    <div class="hint">手机提醒不收取费用：下载日历文件后选择系统日历导入，每节课会设置课前 30 分钟和 10 分钟两次提醒。</div>
+    <div class="hint">添加到手机日历不收取费用：下载 ICS 日历文件后选择系统日历导入，每节课会设置课前 30 分钟和 10 分钟两次提醒。</div>
   </section>
 
   <div class="section-title"><h2>当天课程</h2><span id="candidateSummary">正在加载…</span></div>
