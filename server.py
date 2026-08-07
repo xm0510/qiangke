@@ -116,6 +116,25 @@ def require_user():
         return None, (jsonify({'ok': False, 'error': 'unauthorized'}), 401)
     return user, None
 
+def require_admin():
+    user, err = require_user()
+    if err:
+        return None, err
+    if not user.get("is_admin"):
+        return None, (jsonify({"ok": False, "error": "forbidden"}), 403)
+    return user, None
+
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
+
 # ==================== 页面路由 ====================
 @app.route("/")
 @app.route("/landing.html")
@@ -144,7 +163,11 @@ def admin_page():
 def login_page():
     return send_from_directory(os.path.join(BASE_DIR, "web"), "login.html")
 
-# ==================== ?? API ====================
+@app.route("/favicon.svg")
+def favicon():
+    return send_from_directory(os.path.join(BASE_DIR, "web"), "favicon.svg", mimetype="image/svg+xml")
+
+# ==================== Authentication API ====================
 @app.route("/api/auth/login", methods=["POST"])
 def api_auth_login():
     data=request.get_json(force=True)
@@ -292,7 +315,7 @@ def api_toggle_group(gid):
 
 @app.route("/api/groups/scan", methods=["POST"])
 def api_scan_groups():
-    user, err = require_user()
+    user, err = require_admin()
     if err: return err
     try:
         from wechat_monitor import WeChatMonitor
@@ -537,46 +560,131 @@ def api_get_reviews(eid):
     reviews = db.get_review_entries_for_parent(eid, user['id'])
     return jsonify(reviews)
 
-@app.route("/api/schedule/<int:eid>/generate-reviews", methods=["POST"])
-def api_generate_reviews(eid):
-    """Generate anti-forgetting review entries for a schedule entry"""
+def _review_plan(eid, user_id, data):
+    parent = db.get_schedule_entry(eid, user_id)
+    if not parent:
+        raise LookupError("课程不存在")
+    raw_intervals = data.get("intervals", [1, 2, 4, 7, 15, 30])
+    if not isinstance(raw_intervals, (list, tuple)):
+        raise ValueError("复习间隔格式无效")
+    intervals = [int(value) for value in raw_intervals]
+    if not intervals or any(value <= 0 for value in intervals) or len(intervals) != len(set(intervals)):
+        raise ValueError("复习间隔必须为不重复的正整数")
+
+    base_text = data.get("schedule_date") or parent.get("schedule_date")
+    if base_text:
+        base_date = datetime.strptime(str(base_text), "%Y-%m-%d").date()
+    else:
+        base_date = date.today()
+        days_ahead = int(parent.get("day_of_week") or 1) - base_date.isoweekday()
+        if days_ahead <= 0:
+            days_ahead += 7
+        base_date += timedelta(days=days_ahead)
+
+    start_time = data.get("start_time") or parent.get("start_time") or "20:00"
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", str(start_time)):
+        raise ValueError("复习时间无效")
+    duration_raw = data.get("duration_min")
+    if duration_raw in (None, ""):
+        duration_raw = parent.get("duration_min") or 30
+    duration_min = int(duration_raw)
+    if not 10 <= duration_min <= 480:
+        raise ValueError("复习时长必须在 10 到 480 分钟之间")
+    student_name = str(data.get("student_name") or parent.get("student_name") or "").strip()
+    return parent, intervals, base_date, str(start_time), duration_min, student_name
+
+
+def _build_review_preview(eid, user_id, data):
+    parent, intervals, base_date, start_time, duration_min, student_name = _review_plan(eid, user_id, data)
+    start_value = datetime.strptime(start_time, "%H:%M")
+    end_value = start_value + timedelta(minutes=duration_min)
+    items = []
+    for interval_days in intervals:
+        target_date = base_date + timedelta(days=interval_days)
+        conflicts = []
+        for existing in db.get_schedule_entries_for_date(target_date, user_id):
+            if (existing.get("source") == "review" and existing.get("parent_entry_id") == eid
+                    and existing.get("status") == "pending"):
+                continue
+            try:
+                existing_start = datetime.strptime(str(existing.get("start_time") or ""), "%H:%M")
+                existing_end = existing_start + timedelta(minutes=int(existing.get("duration_min") or 0))
+            except (TypeError, ValueError):
+                continue
+            if start_value < existing_end and end_value > existing_start:
+                conflicts.append({
+                    "id": existing.get("id"),
+                    "student_name": existing.get("student_name") or "",
+                    "subject_type": existing.get("subject_type") or "",
+                    "start_time": existing.get("start_time") or "",
+                    "duration_min": existing.get("duration_min") or 0,
+                    "status": existing.get("status") or "",
+                })
+        items.append({
+            "interval_days": interval_days,
+            "date": target_date.strftime("%Y-%m-%d"),
+            "day_of_week": target_date.isoweekday(),
+            "conflicts": conflicts,
+        })
+    return {
+        "ok": True,
+        "parent_id": eid,
+        "student_name": student_name,
+        "base_date": base_date.strftime("%Y-%m-%d"),
+        "start_time": start_time,
+        "duration_min": duration_min,
+        "count": len(items),
+        "conflict_count": sum(len(item["conflicts"]) for item in items),
+        "items": items,
+    }
+
+
+@app.route("/api/schedule/<int:eid>/review-preview", methods=["POST"])
+def api_review_preview(eid):
     user, err = require_user()
-    if err: return err
-    data = request.get_json(force=True)
-    intervals = data.get("intervals", [1, 2, 4, 7, 15, 30])
-    schedule_date = data.get("schedule_date", None)
-    student_name = data.get("student_name", None)
-    start_time = data.get("start_time", None)
-    duration_min = data.get("duration_min", None)
+    if err:
+        return err
     try:
-        intervals = [int(value) for value in intervals]
-        if not intervals or any(value <= 0 for value in intervals) or len(intervals) != len(set(intervals)):
-            raise ValueError("复习间隔必须为不重复的正整数")
-        if schedule_date: datetime.strptime(str(schedule_date), "%Y-%m-%d")
-        if duration_min not in (None, ""):
-            duration_min = int(duration_min)
-            if not 10 <= duration_min <= 480:
-                raise ValueError("复习时长必须在 10 到 480 分钟之间")
-        if start_time and not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", str(start_time)):
-            raise ValueError("复习时间无效")
+        return jsonify(_build_review_preview(eid, user["id"], request.get_json(silent=True) or {}))
+    except LookupError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 404
     except (TypeError, ValueError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
-    
+
+
+@app.route("/api/schedule/<int:eid>/generate-reviews", methods=["POST"])
+def api_generate_reviews(eid):
+    """Generate anti-forgetting review entries after a fresh conflict check."""
+    user, err = require_user()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    try:
+        preview = _build_review_preview(eid, user["id"], data)
+    except LookupError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 404
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    if preview["conflict_count"] and data.get("_skip_conflict") is not True:
+        payload = dict(preview)
+        payload.update({"ok": False, "conflict": True, "error": "复习计划存在时间冲突"})
+        return jsonify(payload), 409
     try:
         created_ids = db.generate_review_entries(
             parent_id=eid,
-            intervals=intervals,
-            student_name=student_name,
-            start_time=start_time,
-            duration_min=duration_min,
-            schedule_date=schedule_date,
-            user_id=user['id']
+            intervals=[item["interval_days"] for item in preview["items"]],
+            student_name=preview["student_name"],
+            start_time=preview["start_time"],
+            duration_min=preview["duration_min"],
+            schedule_date=preview["base_date"],
+            user_id=user["id"],
         )
-        db.add_log("review_gen", f"为课表#{eid}生成了{len(created_ids)}条抗遗忘复习 (间隔: {intervals})", user['id'])
+        db.add_log("review_gen", f"为课表#{eid}生成了{len(created_ids)}条抗遗忘复习", user["id"])
         return jsonify({"ok": True, "created": len(created_ids), "ids": created_ids})
-    except Exception as e:
-        import traceback
-        return jsonify({"ok": False, "error": str(e), "trace": traceback.format_exc()})
+    except Exception as exc:
+        app.logger.exception("review generation failed")
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
 
 @app.route("/api/schedule/<int:eid>/reviews", methods=["DELETE"])
 def api_delete_reviews(eid):
@@ -816,7 +924,7 @@ def _stop_monitor_thread(user_id):
 
 @app.route("/api/service/start", methods=["POST"])
 def api_service_start():
-    user, err = require_user()
+    user, err = require_admin()
     if err: return err
     try:
         _start_monitor_thread(user['id'])
@@ -828,7 +936,7 @@ def api_service_start():
 
 @app.route("/api/service/stop", methods=["POST"])
 def api_service_stop():
-    user, err = require_user()
+    user, err = require_admin()
     if err: return err
     try:
         _stop_monitor_thread(user['id'])
@@ -840,7 +948,7 @@ def api_service_stop():
 
 @app.route("/api/service/pause", methods=["POST"])
 def api_service_pause():
-    user, err = require_user()
+    user, err = require_admin()
     if err: return err
     try:
         _stop_monitor_thread(user['id'])
@@ -865,7 +973,7 @@ def api_service_status():
 
 @app.route("/api/test-reply", methods=["POST"])
 def api_test_reply():
-    user, err = require_user()
+    user, err = require_admin()
     if err: return err
     data = request.get_json(force=True)
     text = str(data.get("text", "1"))
@@ -899,7 +1007,7 @@ def api_test_reply():
 
 @app.route("/api/diagnose", methods=["POST"])
 def api_diagnose():
-    user, err = require_user()
+    user, err = require_admin()
     if err: return err
     """诊断端点：转储微信窗口控件树结构"""
     try:
@@ -971,7 +1079,7 @@ def run_server(host="127.0.0.1", port=4876, auto_start=False):
 
 
 
-# ==================== ?? ====================
+# ==================== Server entry point ====================
 if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 4876))

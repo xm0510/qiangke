@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>微信自动化 · 巷陌</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
   :root { --bg:#f0f2ff; --card:#fff; --text:#1a1a2e; --muted:#6b7280; --accent:#7c3aed; --accent2:#a855f7; --danger:#ef4444; --warn:#f59e0b; --border:#e5e7eb; --hover:#f5f3ff; --radius:12px; --shadow:0 1px 3px rgba(0,0,0,.06); }
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -86,6 +87,8 @@
   .type-chip.active{border-color:#7c3aed!important;background:linear-gradient(135deg,#7c3aed,#a855f7)!important;color:#fff!important;font-weight:700!important;box-shadow:0 8px 18px rgba(124,58,237,.24)!important}
 
   .toggle{width:44px;height:44px;display:inline-flex;align-items:center}.toggle input{position:absolute!important;opacity:0!important;width:1px!important;height:1px!important;overflow:hidden!important;display:block!important}.toggle .slider{top:10px;bottom:10px}.toggle input:focus-visible+.slider{outline:3px solid rgba(124,58,237,.35);outline-offset:3px}.btn,.tab-nav a,.row select,.row input{min-height:44px}.save-status{border:1px solid rgba(255,255,255,.45)!important}.save-status[data-state="saving"]{color:#fef3c7!important}.save-status[data-state="failed"]{background:#fff!important;color:#b42318!important}.assistant-card{background:linear-gradient(135deg,#fff,#f7f5ff);border:1px solid #ddd6fe}.assistant-summary{color:var(--muted);font-size:13px;line-height:1.75;margin-bottom:12px}.status-chips{display:flex;gap:8px;flex-wrap:wrap}.status-chip{padding:7px 10px;border-radius:999px;background:#f2f4f7;color:#475467;font-size:12px}.status-chip.ok{background:#ecfdf3;color:#027a48}.status-chip.bad{background:#fff1f0;color:#b42318}.tab-nav{position:sticky;top:0;z-index:10;background:rgba(240,242,255,.96);padding:8px 0}.account-badge{font-size:12px;color:#fff;opacity:.9}@media(max-width:680px){body{padding:10px}.tab-nav{display:flex;overflow-x:auto;white-space:nowrap}.header{align-items:flex-start}.header .btn-group{width:100%;display:grid;grid-template-columns:1fr 1fr}.header .btn{width:100%}.grid{gap:10px}.card{padding:14px}.row{align-items:flex-start}.row>label:first-child{width:100%;min-width:0}.save-status{grid-column:1/-1}}
+.service-controls{display:inline-flex;gap:8px;flex-wrap:wrap}.service-admin-notice{margin-top:12px;padding:10px 12px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:12px}.admin-local-control{display:none}
+@media(max-width:680px){.service-controls{grid-template-columns:1fr 1fr}.service-controls .btn:last-child{grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -99,15 +102,15 @@
     <span style="font-size:12px;color:#fff" id="statusLabel">本地助手离线</span><span class="account-badge" id="accountBadge"></span>
   </h1>
   <div class="btn-group" style="gap:8px"><button class="btn save-status" id="saveStatus" data-state="saved" type="button" onclick="retrySave()" aria-live="polite">已保存</button>
-    <button class="btn btn-green" onclick="controlService('start')" id="btnStart">开始抢单</button>
+    <span class="service-controls" id="serviceControls" style="display:none"><button class="btn btn-green" onclick="controlService('start')" id="btnStart">开始抢单</button>
     <button class="btn btn-orange" onclick="controlService('pause')" id="btnPause">暂停</button>
-    <button class="btn btn-outline" id="btnTestReply" onclick="testReply()">测试回复"1"</button>
+    <button class="btn btn-outline" id="btnTestReply" onclick="testReply()">测试回复"1"</button></span>
     <button class="btn btn-outline" onclick="location.href='/schedule'">打开课表</button>
   </div>
 </div>
 
 <div class="grid">
-  <section class="card full-width assistant-card" id="localAssistantCard"><h3><span class="icon">&#128421;</span> 云端账号 + Windows 本地助手</h3><p class="assistant-summary">Railway 负责账号、课表和配置数据；微信群扫描、窗口恢复、本机 OCR 与自动回复无法由云端网页直接完成，必须由 Windows 本地助手连接微信。</p><div class="status-chips"><span class="status-chip bad" id="assistantStatus">本地助手：离线</span><span class="status-chip bad" id="wechatStatus">微信：未连接</span><span class="status-chip bad" id="ocrStatus">OCR：不可用</span><span class="status-chip" id="heartbeatStatus">最近心跳：暂无</span></div><div style="margin-top:12px"><button class="btn btn-outline" type="button" disabled title="本地助手安装包尚未发布">下载本地助手（暂未提供）</button></div></section>
+  <section class="card full-width assistant-card" id="localAssistantCard"><h3><span class="icon">&#128421;</span> 云端账号 + Windows 本地助手</h3><p class="assistant-summary">Railway 负责账号、课表和配置数据；微信群扫描、窗口恢复、本机 OCR 与自动回复无法由云端网页直接完成，必须由 Windows 本地助手连接微信。</p><div class="status-chips"><span class="status-chip bad" id="assistantStatus">本地助手：离线</span><span class="status-chip bad" id="wechatStatus">微信：未连接</span><span class="status-chip bad" id="ocrStatus">OCR：不可用</span><span class="status-chip" id="heartbeatStatus">最近心跳：暂无</span></div><p class="service-admin-notice" id="serviceAdminNotice">&#26222;&#36890;&#29992;&#25143;&#21487;&#37197;&#32622;&#33258;&#24049;&#30340;&#32676;&#32452;&#21644;&#35268;&#21017;&#65307;&#24320;&#22987;&#12289;&#26242;&#20572;&#12289;&#25195;&#25551;&#21644;&#27979;&#35797;&#22238;&#22797;&#28041;&#21450;&#26412;&#26426;&#24494;&#20449;&#65292;&#20165;&#31649;&#29702;&#21592;&#21487;&#25805;&#20316;&#12290;</p><div style="margin-top:12px"><button class="btn btn-outline" type="button" disabled title="本地助手安装包尚未发布">下载本地助手（暂未提供）</button></div></section>
 
   <div class="card">
     <h3><span class="icon">⚙</span> 基础设置</h3>
@@ -179,7 +182,7 @@
     <div class="row">
       <input type="text" id="newGroupName" placeholder="输入群名称..." style="flex:1">
       <button class="btn btn-green" onclick="addGroup()">添加</button>
-      <button class="btn btn-blue" onclick="scanGroups()" id="btnScan">🔍 自动扫描微信群</button>
+      <button class="btn btn-blue admin-local-control" onclick="scanGroups()" id="btnScan">🔍 自动扫描微信群</button>
     </div>
     <div id="groupList" style="max-height:150px;overflow-y:auto;margin-top:8px;font-size:13px"></div>
     <p id="scanTip" style="font-size:11px;color:var(--muted);margin-top:4px">扫描时会自动恢复并显示微信窗口；新版微信使用本机 OCR 识别当前可见群聊。</p>
@@ -298,6 +301,7 @@ async function api(method, path, body) {
 let savedConfig = {};
 let pendingSave = null;
 let localAssistantOnline = false;
+let currentUserIsAdmin = false;
 async function loadConfig() {
   const cfg = await api('GET', '/api/config');
   if (!cfg || cfg.ok === false) return;
@@ -479,6 +483,7 @@ async function addGroup() {
 }
 
 async function scanGroups() {
+  if(!currentUserIsAdmin){toast('\u4ec5\u7ba1\u7406\u5458\u53ef\u626b\u63cf\u672c\u673a\u5fae\u4fe1\u7fa4');return}
   const btn = document.getElementById('btnScan');
   btn.disabled = true;
   btn.textContent = '🔍 扫描中...';
@@ -535,6 +540,7 @@ async function removeGroup(id) {
 
 // ==================== 服务控制（修复#1: 真正启动监控） ====================
 async function controlService(action) {
+  if (!currentUserIsAdmin) { toast('\u4ec5\u7ba1\u7406\u5458\u53ef\u64cd\u4f5c\u672c\u673a\u5fae\u4fe1\u670d\u52a1'); return; }
   if (!localAssistantOnline) { toast('\u8bf7\u5148\u5b89\u88c5\u5e76\u8fde\u63a5 Windows \u672c\u5730\u52a9\u624b'); return; }
   const actions = {
     start: { api: '/api/service/start', label: '\u8fd0\u884c\u4e2d', cls: 'running', btnText: '\u6b63\u5728\u542f\u52a8...' },
@@ -602,10 +608,15 @@ async function refreshStats() {
 
 async function loadCurrentUser() {
   const r=await api('GET','/api/auth/me');if(!r||!r.user)return;
-  const isAdmin=Number(r.user.is_admin)===1;document.getElementById('accountBadge').textContent=(r.user.phone||r.user.nickname||'')+(isAdmin?' \u00b7 \u7ba1\u7406\u5458':'');document.getElementById('adminNav').style.display=isAdmin?'':'none';
+  currentUserIsAdmin=Number(r.user.is_admin)===1;
+  document.getElementById('accountBadge').textContent=(r.user.phone||r.user.nickname||'')+(currentUserIsAdmin?' \u00b7 \u7ba1\u7406\u5458':'');
+  document.getElementById('adminNav').style.display=currentUserIsAdmin?'':'none';
+  document.getElementById('serviceControls').style.display=currentUserIsAdmin?(window.matchMedia('(max-width:680px)').matches?'grid':'inline-flex'):'none';
+  document.getElementById('serviceAdminNotice').style.display=currentUserIsAdmin?'none':'block';
+  document.querySelectorAll('.admin-local-control').forEach(function(element){element.style.display=currentUserIsAdmin?'inline-flex':'none'});
 }
 function setCapability(id,label,ok){const el=document.getElementById(id);if(!el)return;el.textContent=label;el.classList.toggle('ok',!!ok);el.classList.toggle('bad',!ok)}
-async function loadLocalAssistantStatus(){const r=await api('GET','/api/local-assistant/status');localAssistantOnline=!!(r&&r.ok&&r.assistant_online);setCapability('assistantStatus','\u672c\u5730\u52a9\u624b\uff1a'+(localAssistantOnline?'\u5728\u7ebf':'\u79bb\u7ebf'),localAssistantOnline);setCapability('wechatStatus','\u5fae\u4fe1\uff1a'+(r&&r.wechat_connected?'\u5df2\u8fde\u63a5':'\u672a\u8fde\u63a5'),!!(r&&r.wechat_connected));setCapability('ocrStatus','OCR\uff1a'+(r&&r.ocr_available?'\u53ef\u7528':'\u4e0d\u53ef\u7528'),!!(r&&r.ocr_available));document.getElementById('heartbeatStatus').textContent='\u6700\u8fd1\u5fc3\u8df3\uff1a'+(r&&r.last_heartbeat?r.last_heartbeat:'\u6682\u65e0');document.getElementById('btnStart').disabled=!localAssistantOnline;document.getElementById('btnPause').disabled=!localAssistantOnline;document.getElementById('btnTestReply').disabled=!localAssistantOnline;document.getElementById('btnStart').title=localAssistantOnline?'':'\u8bf7\u5148\u5b89\u88c5\u5e76\u8fde\u63a5 Windows \u672c\u5730\u52a9\u624b';document.getElementById('btnTestReply').title=localAssistantOnline?'':'\u8bf7\u5148\u5b89\u88c5\u5e76\u8fde\u63a5 Windows \u672c\u5730\u52a9\u624b';loadStatus(localAssistantOnline?'stopped':'offline')}
+async function loadLocalAssistantStatus(){const r=await api('GET','/api/local-assistant/status');localAssistantOnline=!!(r&&r.ok&&r.assistant_online);setCapability('assistantStatus','\u672c\u5730\u52a9\u624b\uff1a'+(localAssistantOnline?'\u5728\u7ebf':'\u79bb\u7ebf'),localAssistantOnline);setCapability('wechatStatus','\u5fae\u4fe1\uff1a'+(r&&r.wechat_connected?'\u5df2\u8fde\u63a5':'\u672a\u8fde\u63a5'),!!(r&&r.wechat_connected));setCapability('ocrStatus','OCR\uff1a'+(r&&r.ocr_available?'\u53ef\u7528':'\u4e0d\u53ef\u7528'),!!(r&&r.ocr_available));document.getElementById('heartbeatStatus').textContent='\u6700\u8fd1\u5fc3\u8df3\uff1a'+(r&&r.last_heartbeat?r.last_heartbeat:'\u6682\u65e0');document.getElementById('btnStart').disabled=!localAssistantOnline||!currentUserIsAdmin;document.getElementById('btnPause').disabled=!localAssistantOnline||!currentUserIsAdmin;document.getElementById('btnTestReply').disabled=!localAssistantOnline||!currentUserIsAdmin;document.getElementById('btnStart').title=localAssistantOnline?'':'\u8bf7\u5148\u5b89\u88c5\u5e76\u8fde\u63a5 Windows \u672c\u5730\u52a9\u624b';document.getElementById('btnTestReply').title=localAssistantOnline?'':'\u8bf7\u5148\u5b89\u88c5\u5e76\u8fde\u63a5 Windows \u672c\u5730\u52a9\u624b';loadStatus(localAssistantOnline?'stopped':'offline')}
 function setupToggleLabels(){document.querySelectorAll('label.toggle input').forEach(function(input){if(input.getAttribute('aria-label'))return;var row=input.closest('.row'),label=row&&row.querySelector(':scope > label:first-child');input.setAttribute('aria-label',(label&&label.textContent.trim())||input.id)})}
 
 async function refreshReminders() {
@@ -666,6 +677,7 @@ function toast(msg) {
 
 // ==================== 测试回复 ====================
 async function testReply() {
+  if(!currentUserIsAdmin){toast('\u4ec5\u7ba1\u7406\u5458\u53ef\u6d4b\u8bd5\u672c\u673a\u5fae\u4fe1\u56de\u590d');return}
   if(!localAssistantOnline){toast('\u8bf7\u5148\u5b89\u88c5\u5e76\u8fde\u63a5 Windows \u672c\u5730\u52a9\u624b');return}
   const text=document.getElementById('reply_content').value||'1';toast('\u6b63\u5728\u6d4b\u8bd5\u53d1\u9001: '+text+' ...\u8bf7\u5148\u6253\u5f00\u76ee\u6807\u5fae\u4fe1\u7fa4\u804a\u5929\u7a97\u53e3');const r=await api('POST','/api/test-reply',{text});if(r.ok){toast('\u2705 '+r.msg)}else{const steps=(r.steps||[]).join('\n'),detail=r.msg+'\n\n\u8bca\u65ad\u6b65\u9aa4:\n'+steps;toast('\u274c '+r.msg);console.error('\u53d1\u9001\u5931\u8d25\u8bca\u65ad:',r);alert('\u274c \u53d1\u9001\u5931\u8d25\n\n'+detail)}
 }
